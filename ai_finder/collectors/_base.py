@@ -29,12 +29,25 @@ async def html_collect(
     extractor: Callable[[str, str], list[Candidate]],
     *,
     prefer_higher_upvotes: bool = False,
+    stealth_fallback: bool = False,
 ) -> list[Candidate]:
-    """Fetch each URL in `sources` concurrently, apply `extractor`, dedup."""
+    """Fetch each URL in `sources` concurrently, apply `extractor`, dedup.
+
+    With `stealth_fallback`, any URL that plain httpx couldn't fetch (blocked /
+    empty) is retried once via the Camoufox stealth browser — useful for
+    Cloudflare-walled sources.
+    """
     from ..net import fetch_all
-    out: list[Candidate] = []
+    htmls: dict[str, str] = {}
     responses = await fetch_all(sources)
     for url, r in zip(sources, responses):
-        if r:
-            out.extend(extractor(r.text, url))
+        if r and r.text:
+            htmls[url] = r.text
+        elif stealth_fallback:
+            from ..browser import render_stealth
+            htmls[url] = await render_stealth(url)
+    out: list[Candidate] = []
+    for url, html in htmls.items():
+        if html:
+            out.extend(extractor(html, url))
     return dedup_by_domain(out, prefer_higher_upvotes)

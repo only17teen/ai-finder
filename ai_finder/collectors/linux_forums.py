@@ -68,7 +68,7 @@ def extract_candidates(html: str, forum_url: str) -> list[Candidate]:
 
 async def fetch_candidates() -> list[Candidate]:
     from ._base import html_collect
-    return await html_collect(SOURCES, extract_candidates)
+    return await html_collect(SOURCES, extract_candidates, stealth_fallback=True)
 
 
 async def collect(db: DB) -> int:

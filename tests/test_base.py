@@ -33,3 +33,21 @@ def test_html_collect(monkeypatch):
 
     out = asyncio.run(html_collect(["u1", "u2", "u3"], extractor))
     assert {c.domain for c in out} == {"one.ai", "two.ai"}  # None skipped
+
+
+def test_html_collect_stealth_fallback(monkeypatch):
+    def extractor(html, url):
+        return [Candidate(url=html.strip(), source_platform="x")] if html else []
+
+    async def fake_fetch_all(urls, **k):
+        class R:
+            def __init__(self, t): self.text = t
+        return [R("https://plain.ai"), None]  # second URL blocked
+
+    async def fake_stealth(url, *a, **k):
+        return "https://stealthed.ai"  # recovered via stealth
+    monkeypatch.setattr("ai_finder.net.fetch_all", fake_fetch_all)
+    monkeypatch.setattr("ai_finder.browser.render_stealth", fake_stealth)
+
+    out = asyncio.run(html_collect(["u1", "u2"], extractor, stealth_fallback=True))
+    assert {c.domain for c in out} == {"plain.ai", "stealthed.ai"}
