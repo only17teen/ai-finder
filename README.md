@@ -63,6 +63,7 @@ python -m ai_finder.main recheck --max-age-days 7   # re-verify stale services
 python -m ai_finder.main history --domain geekai.co # change log
 python -m ai_finder.main prune                      # drop unreachable services
 python -m ai_finder.main digest --limit 10          # Telegram top-N digest
+python -m ai_finder.main links --limit 25           # copy-friendly referral+API URLs
 ```
 
 Cron (every 6h):
@@ -84,7 +85,7 @@ from env vars and never committed:
 ## Tests
 
 ```bash
-python -m pytest        # 120 tests
+python -m pytest        # 126 tests
 ```
 
 Parsing/scoring logic is written as pure functions, unit-tested with fixtures (no

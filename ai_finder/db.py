@@ -257,6 +257,14 @@ class DB:
     def all_services(self) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM services").fetchall()
 
+    def monetizable(self, limit: int = 50) -> list[sqlite3.Row]:
+        """Services with a referral program, best first — the ones you can
+        actually earn from. Ordered by score desc."""
+        return self.conn.execute(
+            "SELECT * FROM services WHERE has_referral=1 "
+            "ORDER BY score DESC LIMIT ?", (limit,),
+        ).fetchall()
+
     def get_history(self, domain: str) -> list[sqlite3.Row]:
         """Return change history for a domain, oldest first."""
         return self.conn.execute(

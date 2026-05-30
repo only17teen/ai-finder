@@ -184,6 +184,22 @@ def cmd_prune(db: DB, status: str) -> None:
     print(f"Pruned {n} services with status '{status}'")
 
 
+def cmd_links(db: DB, limit: int) -> None:
+    """Print copy-friendly referral + API links for monetizable finds."""
+    rows = db.monetizable(limit)
+    if not rows:
+        print("No monetizable services yet (run + verify first).")
+        return
+    for r in rows:
+        name = r["name"] or r["domain"]
+        comm = f" ({r['referral_commission']})" if r["referral_commission"] else ""
+        print(f"[{r['score']:>3}] {name}{comm}")
+        if r["referral_url"]:
+            print(f"      referral: {r['referral_url']}")
+        if r["api_docs_url"]:
+            print(f"      api:      {r['api_docs_url']}")
+
+
 def cmd_history(db: DB, domain: str) -> None:
     from datetime import datetime, timezone
 
@@ -273,6 +289,8 @@ def main(argv: list[str] | None = None) -> int:
     p_hist.add_argument("--domain", required=True)
     p_digest = sub.add_parser("digest")
     p_digest.add_argument("--limit", type=int, default=10)
+    p_links = sub.add_parser("links")
+    p_links.add_argument("--limit", type=int, default=25)
     args = ap.parse_args(argv)
 
     if args.verbose:
@@ -313,6 +331,8 @@ def main(argv: list[str] | None = None) -> int:
                 cmd_history(db, args.domain)
             elif args.cmd == "digest":
                 asyncio.run(cmd_digest(db, cfg, args.limit))
+            elif args.cmd == "links":
+                cmd_links(db, args.limit)
         finally:
             db.close()
         return 0

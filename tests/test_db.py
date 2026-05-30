@@ -127,6 +127,17 @@ def test_delete_services(db):
     assert db.delete_services("unreachable") == 0
 
 
+def test_monetizable(db):
+    a, _ = db.upsert_candidate(Candidate(url="https://earn.ai", source_platform="hn"))
+    db.update_service(a, has_referral=1, score=80, referral_url="https://earn.ai/aff")
+    b, _ = db.upsert_candidate(Candidate(url="https://noref.ai", source_platform="hn"))
+    db.update_service(b, has_referral=0, has_api=1, score=90)
+    c, _ = db.upsert_candidate(Candidate(url="https://low.ai", source_platform="hn"))
+    db.update_service(c, has_referral=1, score=20)
+    rows = db.monetizable()
+    assert [r["domain"] for r in rows] == ["earn.ai", "low.ai"]
+
+
 def test_get_history(db):
     sid, _ = db.upsert_candidate(Candidate(url="https://x.ai", source_platform="hn"))
     db.record_change(sid, "has_referral", "0", "1")
