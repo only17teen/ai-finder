@@ -1,0 +1,84 @@
+# AI Finder
+
+Discover **niche AI services with APIs and referral programs** (like geekai.co) by
+crawling sources the mainstream crowd ignores — Chinese/Japanese/Korean dev
+communities, European directories, FOSS/self-hosted hubs, and ultra-early launch
+platforms. Verifies each site for an API + affiliate program, scores it, stores it
+in SQLite, and can notify you on Telegram.
+
+## Sources (12 collectors)
+
+| Collector | Coverage |
+|-----------|----------|
+| `hackernews` | Show HN (Firebase API) |
+| `linux_forums` | LWN, Phoronix, ItsFOSS |
+| `apify_sources` | ProductHunt + IndieHackers (needs Apify token) |
+| `ai_directories` | theresanaiforthat / toolify / futurepedia (two-level crawl) |
+| `github_trending` | trending AI repos → their SaaS homepages |
+| `hidden_gems` | 🇨🇳 ai-bot.cn, aigc.cn · 🇫🇷 aixploria, intelligence-artificielle · rankmyai (CN/KR/JP/TW/SG) · HuggingFace Spaces |
+| `foss_sources` | Lobsters, Slashdot, HN-newest, HN Algolia, self-hosted lists |
+| `forums` | Lemmy (federated FOSS) + dev.to |
+| `asian_dev` | 🇨🇳 V2EX · 🇯🇵 Qiita, Zenn |
+| `launch` | MicroLaunch, TinyLaunch (days-old indie launches) |
+| `reddit_rss` | LocalLLaMA, selfhosted, StableDiffusion, ollama, comfyui, … |
+| `telegram_channels` | public AI channels (needs Telegram API creds) |
+
+## Pipeline
+
+```
+collect (12 sources, concurrent) → dedup by domain → verify (1 shared browser)
+→ score + categorize → SQLite → CSV export + Telegram alerts
+```
+
+- **Verification** (`verifier.py`): detects API docs, referral program, pricing, and
+  the commission %. Bilingual — English **and** Chinese patterns (开放平台, 分销, 返佣…).
+- **Scoring** (`scorer.py`): +30 API, +25 referral, +20 commission>20%, +15 multi-platform,
+  +10 free tier, +5/100 upvotes.
+- **Noise filtering** (`db.py`): drops infra/news/social hosts and non-public hosts
+  (localhost, IPs, TLD-less) globally.
+
+## Quick start
+
+```bash
+python -m venv .venv && . .venv/bin/activate
+pip install -e .
+python -m playwright install chromium     # for JS-rendered sites
+cp config.toml.example config.toml        # then edit / set env vars
+
+python -m ai_finder.main run              # full pipeline (all enabled sources)
+python -m ai_finder.main run --source reddit
+python -m ai_finder.main top --limit 30   # highest-scoring finds
+python -m ai_finder.main export --out ai_services.csv
+python -m ai_finder.main status
+python -m ai_finder.main verify --url geekai.co
+```
+
+Cron (every 6h):
+```cron
+0 */6 * * * cd /path/to/ai-finder && .venv/bin/python -m ai_finder.main run
+```
+
+## Configuration
+
+Edit `config.toml` (toggle sources, rate limits, score threshold). **Secrets** are read
+from env vars and never committed:
+
+| Env var | Used by |
+|---------|---------|
+| `APIFY_TOKEN` | ProductHunt / IndieHackers |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | notifications |
+| `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | reading public channels |
+
+## Tests
+
+```bash
+python -m pytest        # 101 tests
+```
+
+Parsing/scoring logic is written as pure functions, unit-tested with fixtures (no
+network). Live fetches are best-effort and degrade gracefully.
+
+## Ethics
+
+Only public content. Respects rate limits (per-domain throttle + retry/backoff).
+Tokens via env vars, never hardcoded.
