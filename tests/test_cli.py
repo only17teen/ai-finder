@@ -160,3 +160,23 @@ def test_cli_status_json(tmp_path, capsys):
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
     assert set(data) == {"total", "verified", "with_api", "with_referral"}
+
+
+def test_cli_recheck_reports_changes(tmp_path, capsys, monkeypatch):
+    cfile = tmp_path / "c.toml"
+    dbfile = tmp_path / "r.db"
+    cfile.write_text(f'db_path = "{dbfile}"\n')
+    db = DB(dbfile)
+    sid, _ = db.upsert_candidate(Candidate(url="https://x.ai", source_platform="hn"))
+    db.update_service(sid, status="verified", has_referral=0)  # last_checked NULL
+    db.close()
+
+    async def fake_verify(url):
+        return {"has_api": True, "has_referral": True,
+                "referral_commission": "40%"}
+    monkeypatch.setattr("ai_finder.tracker.verify", fake_verify)
+
+    rc = cli.main(["--config", str(cfile), "recheck"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "x.ai" in out and "has_referral" in out

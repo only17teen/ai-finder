@@ -18,7 +18,7 @@ import logging
 import sys
 
 from . import config as _config
-from . import notifier, scorer, verifier
+from . import notifier, scorer, tracker, verifier
 from .collectors import (
     ai_directories,
     apify_sources,
@@ -184,6 +184,18 @@ def cmd_prune(db: DB, status: str) -> None:
     print(f"Pruned {n} services with status '{status}'")
 
 
+async def cmd_recheck(db: DB, max_age_days: float, only_verified: bool) -> None:
+    report = await tracker.recheck_all(
+        db, only_verified=only_verified, max_age_days=max_age_days)
+    if not report:
+        print("No changes detected.")
+        return
+    for domain, changes in report.items():
+        print(f"{domain}:")
+        for field, ov, nv in changes:
+            print(f"  {field}: {ov} -> {nv}")
+
+
 def cmd_search(db: DB, keyword: str, category: str, min_score: int,
                limit: int, as_json: bool = False) -> None:
     rows = db.search(keyword=keyword, category=category,
@@ -232,6 +244,10 @@ def main(argv: list[str] | None = None) -> int:
     p_search.add_argument("--json", action="store_true")
     p_prune = sub.add_parser("prune")
     p_prune.add_argument("--status", default="unreachable")
+    p_recheck = sub.add_parser("recheck")
+    p_recheck.add_argument("--max-age-days", type=float, default=7.0)
+    p_recheck.add_argument("--all", action="store_true",
+                           help="recheck all services, not just verified/notified")
     args = ap.parse_args(argv)
 
     if args.verbose:
@@ -265,6 +281,9 @@ def main(argv: list[str] | None = None) -> int:
                            args.limit, as_json=args.json)
             elif args.cmd == "prune":
                 cmd_prune(db, args.status)
+            elif args.cmd == "recheck":
+                asyncio.run(cmd_recheck(db, args.max_age_days,
+                                        only_verified=not args.all))
         finally:
             db.close()
         return 0
