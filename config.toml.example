@@ -19,6 +19,7 @@ launch = true        # MicroLaunch + TinyLaunch ultra-early indie launches
 reddit = true        # niche AI subreddits via public RSS
 intl_forums = true   # 🇰🇷 Korean GeekNews (news.hada.io)
 mastodon = true      # federated #ai hashtag timelines (link cards)
+linux_do = true      # 🇨🇳 linux.do Discourse forum (AI services + invites)
 telegram = false     # needs telegram.api_id/api_hash/channels
 
 [limits]
