@@ -84,6 +84,19 @@ async def fetch(client: httpx.AsyncClient, url: str, *,
     return None
 
 
+async def fetch_text(client, url, *, limiter=None, max_retries: int = 3,
+                     stealth: bool = False) -> str:
+    """Fetch one URL's text. With `stealth`, fall back to Camoufox when the
+    plain httpx fetch is blocked/empty. Returns '' on total failure."""
+    r = await fetch(client, url, limiter=limiter, max_retries=max_retries)
+    if r and r.text:
+        return r.text
+    if stealth:
+        from .browser import render_stealth
+        return await render_stealth(url)
+    return ""
+
+
 async def fetch_all(urls, per_domain_delay: float = 1.0,
                     max_retries: int = 3, user_agent: str | None = None):
     """Fetch many URLs concurrently in one client. Returns responses aligned

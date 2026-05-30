@@ -105,6 +105,27 @@ async def test_fetch_all_aligns_and_handles_failures(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fetch_text_stealth_fallback(monkeypatch):
+    def handler(request):
+        return httpx.Response(403)  # blocked
+    transport = httpx.MockTransport(handler)
+
+    async def fake_stealth(url, *a, **k):
+        return "<html>recovered</html>"
+    monkeypatch.setattr("ai_finder.browser.render_stealth", fake_stealth)
+    monkeypatch.setattr(net, "backoff_delay", lambda *a, **k: 0.0)
+
+    async with httpx.AsyncClient(transport=transport) as client:
+        # no stealth -> empty
+        plain = await net.fetch_text(client, "https://x.ai", max_retries=0)
+        assert plain == ""
+        # stealth -> recovered
+        recovered = await net.fetch_text(client, "https://x.ai",
+                                         max_retries=0, stealth=True)
+        assert recovered == "<html>recovered</html>"
+
+
+@pytest.mark.asyncio
 async def test_fetch_gives_up_returns_none(monkeypatch):
     monkeypatch.setattr(net, "backoff_delay", lambda *a, **k: 0.0)
 

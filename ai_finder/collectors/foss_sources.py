@@ -85,14 +85,18 @@ def algolia_hit_to_candidate(hit: dict) -> Candidate | None:
 
 
 async def fetch_candidates() -> list[Candidate]:
-    from ..net import fetch_all
+    import httpx
+
+    from ..net import RateLimiter, fetch, fetch_text
     html_urls = HTML_SOURCES + LIST_SOURCES
-    responses = await fetch_all(html_urls + [ALGOLIA])
     out: list[Candidate] = []
-    for url, r in zip(html_urls, responses):
-        if r:
-            out.extend(extract_links(r.text, url))
-    algolia_resp = responses[-1]
+    limiter = RateLimiter(per_domain_delay=1.0)
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        for url in html_urls:
+            html = await fetch_text(client, url, limiter=limiter, stealth=True)
+            if html:
+                out.extend(extract_links(html, url))
+        algolia_resp = await fetch(client, ALGOLIA, limiter=limiter)
     if algolia_resp:
         try:
             for hit in algolia_resp.json().get("hits", []):
