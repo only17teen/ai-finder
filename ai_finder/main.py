@@ -167,6 +167,11 @@ def cmd_sources(cfg: dict) -> None:
         print(f"  [{state}] {name}")
 
 
+def cmd_prune(db: DB, status: str) -> None:
+    n = db.delete_services(status)
+    print(f"Pruned {n} services with status '{status}'")
+
+
 def cmd_search(db: DB, keyword: str, category: str, min_score: int,
                limit: int, as_json: bool = False) -> None:
     rows = db.search(keyword=keyword, category=category,
@@ -211,6 +216,8 @@ def main(argv: list[str] | None = None) -> int:
     p_search.add_argument("--min-score", type=int, default=0)
     p_search.add_argument("--limit", type=int, default=50)
     p_search.add_argument("--json", action="store_true")
+    p_prune = sub.add_parser("prune")
+    p_prune.add_argument("--status", default="unreachable")
     args = ap.parse_args(argv)
 
     if args.verbose:
@@ -242,6 +249,8 @@ def main(argv: list[str] | None = None) -> int:
             elif args.cmd == "search":
                 cmd_search(db, args.keyword, args.category, args.min_score,
                            args.limit, as_json=args.json)
+            elif args.cmd == "prune":
+                cmd_prune(db, args.status)
         finally:
             db.close()
         return 0

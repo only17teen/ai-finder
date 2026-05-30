@@ -99,6 +99,26 @@ def test_search(db):
     assert [r["domain"] for r in rows] == ["imagegen.ai", "codehelper.dev"]
 
 
+def test_delete_services(db):
+    a, _ = db.upsert_candidate(Candidate(url="https://live.ai", source_platform="hn"))
+    db.update_service(a, status="verified")
+    d, _ = db.upsert_candidate(Candidate(url="https://dead.ai", source_platform="hn"))
+    db.update_service(d, status="unreachable")
+    db.add_tag(d, "code")
+    db.record_change(d, "status", "verified", "unreachable")
+
+    removed = db.delete_services("unreachable")
+    assert removed == 1
+    assert db.get(d) is None
+    assert db.get(a) is not None
+    assert db.conn.execute(
+        "SELECT COUNT(*) FROM tags WHERE service_id=?", (d,)).fetchone()[0] == 0
+    assert db.conn.execute(
+        "SELECT COUNT(*) FROM service_history WHERE service_id=?",
+        (d,)).fetchone()[0] == 0
+    assert db.delete_services("unreachable") == 0
+
+
 def test_stats(db):
     db.upsert_candidate(Candidate(url="https://a.com", source_platform="hn"))
     sid, _ = db.upsert_candidate(

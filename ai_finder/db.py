@@ -243,6 +243,21 @@ class DB:
     def all_services(self) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM services").fetchall()
 
+    def delete_services(self, status: str) -> int:
+        """Delete services with the given status (+ their tags/history).
+        Returns the number of services removed."""
+        with self._tx() as conn:
+            ids = [r[0] for r in conn.execute(
+                "SELECT id FROM services WHERE status=?", (status,)).fetchall()]
+            if not ids:
+                return 0
+            qmarks = ",".join("?" * len(ids))
+            conn.execute(f"DELETE FROM tags WHERE service_id IN ({qmarks})", ids)
+            conn.execute(
+                f"DELETE FROM service_history WHERE service_id IN ({qmarks})", ids)
+            conn.execute(f"DELETE FROM services WHERE id IN ({qmarks})", ids)
+            return len(ids)
+
     def search(self, keyword: str = "", category: str = "",
                min_score: int = 0, limit: int = 50) -> list[sqlite3.Row]:
         """Filter services by keyword (domain/name/description), category,
