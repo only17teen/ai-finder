@@ -13,13 +13,15 @@ from ..keywords import is_ai_related
 
 PLATFORM = "mastodon"
 
-INSTANCES = ["mastodon.social", "hachyderm.io", "mas.to"]
+INSTANCES = ["mastodon.social", "hachyderm.io", "mas.to",
+             "techhub.social", "fosstodon.org"]
 TAG_URL = "https://{inst}/api/v1/timelines/tag/ai?limit=40"
 
 # Mastodon hosts + link shorteners are not the discovered service.
 _EXTRA_NOISE = {
     "mastodon.social", "mastodon.uno", "mastodon.online", "mas.to",
-    "hachyderm.io", "mstdn.social", "bit.ly", "buff.ly", "t.co", "ow.ly",
+    "hachyderm.io", "mstdn.social", "techhub.social", "fosstodon.org",
+    "bit.ly", "buff.ly", "t.co", "ow.ly",
     "tinyurl.com", "dlvr.it", "flip.it", "podbean.com",
 }
 

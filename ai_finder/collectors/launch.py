@@ -18,9 +18,10 @@ PLATFORM = "launch"
 SOURCES = [
     "https://microlaunch.net/",
     "https://www.tinylaunch.com/",
+    "https://startupbase.io/",
 ]
 
-_SELF = {"microlaunch.net", "tinylaunch.com"}
+_SELF = {"microlaunch.net", "tinylaunch.com", "startupbase.io"}
 
 
 def _skip(domain: str, src_domain: str) -> bool:

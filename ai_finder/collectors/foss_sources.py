@@ -24,6 +24,7 @@ HTML_SOURCES = [
     "https://lobste.rs/t/ai",        # Lobsters AI tag
     "https://slashdot.org/",         # Slashdot front
     "https://news.ycombinator.com/newest",  # HN brand-new submissions
+    "https://news.ycombinator.com/show",    # Show HN (launches)
 ]
 
 # Raw awesome-list READMEs (self-hosted / local-LLM ecosystems).
