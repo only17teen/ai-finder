@@ -234,3 +234,24 @@ def test_cli_links_shows_platform(tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "via Rewardful" in out and "earn.ai/aff" in out
+
+
+def test_cmd_run_uses_verify_config(tmp_path, monkeypatch):
+    import asyncio
+    db = DB(tmp_path / "t.db")
+    cfg = cfgmod.load(tmp_path / "none.toml")
+    cfg["verify"] = {"concurrency": 3, "retry_cooldown_h": 12.0}
+    for s in cfg["sources"]:
+        cfg["sources"][s] = False  # skip collection
+
+    captured = {}
+
+    async def fake_verify_pending(db_, concurrency, retry_cooldown_h):
+        captured["concurrency"] = concurrency
+        captured["cooldown"] = retry_cooldown_h
+        return 0
+    monkeypatch.setattr(cli, "_verify_pending", fake_verify_pending)
+
+    asyncio.run(cli.cmd_run(db, cfg, only=None))
+    assert captured == {"concurrency": 3, "cooldown": 12.0}
+    db.close()

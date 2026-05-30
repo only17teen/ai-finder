@@ -18,6 +18,7 @@ DEFAULTS = {
     },
     "limits": {"hackernews": 100, "github_trending": 25},
     "rate": {"per_domain_delay": 1.0, "max_retries": 3},
+    "verify": {"concurrency": 6, "retry_cooldown_h": 24.0},
     "notify": {"threshold": 50},
     "apify": {"token": ""},
     "telegram": {"api_id": 0, "api_hash": "", "channels": [],

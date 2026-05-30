@@ -29,6 +29,10 @@ github_trending = 25
 per_domain_delay = 1.0   # seconds between requests to the same host
 max_retries = 3
 
+[verify]
+concurrency = 6          # parallel site verifications (one shared browser)
+retry_cooldown_h = 24.0  # re-try 'unreachable' services older than this (hours)
+
 [notify]
 threshold = 50           # min score to push a Telegram alert
 

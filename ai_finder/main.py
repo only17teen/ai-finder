@@ -113,7 +113,12 @@ async def _verify_pending(db: DB, concurrency: int = 6,
 async def cmd_run(db: DB, cfg: dict, only: str | None) -> None:
     new = await _collect(db, cfg, only)
     print(f"Collected: {new} new candidates")
-    checked = await _verify_pending(db)
+    vcfg = cfg.get("verify", {})
+    checked = await _verify_pending(
+        db,
+        concurrency=int(vcfg.get("concurrency", 6)),
+        retry_cooldown_h=float(vcfg.get("retry_cooldown_h", 24.0)),
+    )
     print(f"Verified:  {checked} sites")
     scorer.rescore_all(db)
     tg = cfg["telegram"]
