@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 
-import httpx
 from bs4 import BeautifulSoup
 
 from ..db import DB, Candidate, domain_of, is_noise_domain
@@ -85,23 +84,22 @@ def algolia_hit_to_candidate(hit: dict) -> Candidate | None:
 
 
 async def fetch_candidates() -> list[Candidate]:
-    from ..net import RateLimiter, fetch
-    limiter = RateLimiter(per_domain_delay=1.0)
+    from ..net import fetch_all
+    html_urls = HTML_SOURCES + LIST_SOURCES
+    responses = await fetch_all(html_urls + [ALGOLIA])
     out: list[Candidate] = []
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        for url in HTML_SOURCES + LIST_SOURCES:
-            r = await fetch(client, url, limiter=limiter)
-            if r:
-                out.extend(extract_links(r.text, url))
-        r = await fetch(client, ALGOLIA, limiter=limiter)
+    for url, r in zip(html_urls, responses):
         if r:
-            try:
-                for hit in r.json().get("hits", []):
-                    c = algolia_hit_to_candidate(hit)
-                    if c:
-                        out.append(c)
-            except Exception:
-                pass
+            out.extend(extract_links(r.text, url))
+    algolia_resp = responses[-1]
+    if algolia_resp:
+        try:
+            for hit in algolia_resp.json().get("hits", []):
+                c = algolia_hit_to_candidate(hit)
+                if c:
+                    out.append(c)
+        except Exception:
+            pass
     uniq: dict[str, Candidate] = {}
     for c in out:
         if c.domain:

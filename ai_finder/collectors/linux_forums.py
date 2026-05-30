@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 
-import httpx
 from bs4 import BeautifulSoup
 
 from ..db import DB, Candidate
@@ -68,14 +67,13 @@ def extract_candidates(html: str, forum_url: str) -> list[Candidate]:
 
 
 async def fetch_candidates() -> list[Candidate]:
-    from ..net import RateLimiter, fetch
-    limiter = RateLimiter(per_domain_delay=1.0)
+    from ..net import fetch_all
+    urls = [url for _name, url in SOURCES]
+    responses = await fetch_all(urls)
     out: list[Candidate] = []
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        for _name, url in SOURCES:
-            r = await fetch(client, url, limiter=limiter)
-            if r:
-                out.extend(extract_candidates(r.text, url))
+    for url, r in zip(urls, responses):
+        if r:
+            out.extend(extract_candidates(r.text, url))
     # dedup across forums by domain
     uniq: dict[str, Candidate] = {}
     for c in out:
