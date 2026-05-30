@@ -151,10 +151,8 @@ async def fetch_candidates(sources: list[str] | None = None,
 
 
 async def collect(db: DB, sources: list[str] | None = None) -> int:
-    cands = await fetch_candidates(sources)
-    new = sum(db.upsert_candidate(c)[1] for c in cands)
-    db.log_source(PLATFORM, len(cands), new)
-    return new
+    from . import store_candidates
+    return store_candidates(db, PLATFORM, await fetch_candidates(sources))
 
 
 if __name__ == "__main__":

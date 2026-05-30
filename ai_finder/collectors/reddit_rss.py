@@ -90,10 +90,8 @@ async def fetch_candidates(subreddits: list[str] | None = None) -> list[Candidat
 
 
 async def collect(db: DB, subreddits: list[str] | None = None) -> int:
-    cands = await fetch_candidates(subreddits)
-    new = sum(db.upsert_candidate(c)[1] for c in cands)
-    db.log_source(PLATFORM, len(cands), new)
-    return new
+    from . import store_candidates
+    return store_candidates(db, PLATFORM, await fetch_candidates(subreddits))
 
 
 if __name__ == "__main__":

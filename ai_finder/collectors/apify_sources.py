@@ -93,10 +93,8 @@ async def fetch_candidates(
 
 async def collect(db: DB, token: str | None = None,
                   actors: dict | None = None) -> int:
-    cands = await fetch_candidates(token, actors)
-    new = sum(db.upsert_candidate(c)[1] for c in cands)
-    db.log_source("apify", len(cands), new)
-    return new
+    from . import store_candidates
+    return store_candidates(db, "apify", await fetch_candidates(token, actors))
 
 
 if __name__ == "__main__":
