@@ -36,7 +36,9 @@ collect (12 sources, concurrent) → dedup by domain → verify (1 shared browse
 - **Verification** (`verifier.py`): detects API docs, referral program, pricing, and
   the commission %. Bilingual — English **and** Chinese patterns (开放平台, 分销, 返佣…).
 - **Scoring** (`scorer.py`): +30 API, +25 referral, +20 commission>20%, +15 multi-platform,
-  +10 free tier, +5/100 upvotes.
+  +10 free tier, +5/100 upvotes (capped at +15). **Niche bonus** (+15) for monetizable
+  services that are still under the radar (single platform, <100 upvotes) — keeps niche
+  finds from being buried by viral generic tools.
 - **Noise filtering** (`db.py`): drops infra/news/social hosts and non-public hosts
   (localhost, IPs, TLD-less) globally.
 

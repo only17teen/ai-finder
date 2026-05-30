@@ -40,8 +40,14 @@ def _commission_pct(commission: str) -> int:
 
 
 def score_service(row: dict) -> int:
-    """Compute a monetization-potential score from a service row (pure)."""
+    """Compute a monetization-potential score from a service row (pure).
+
+    Favors *niche* finds: monetizable (API/referral) services that are still
+    under the radar get a bonus, while the popularity (upvotes) bonus is capped
+    so a viral generic tool can't outrank a niche monetizable one.
+    """
     s = 0
+    monetizable = bool(row.get("has_api") or row.get("has_referral"))
     if row.get("has_api"):
         s += 30
     if row.get("has_referral"):
@@ -54,7 +60,12 @@ def score_service(row: dict) -> int:
     if "free" in (row.get("pricing_info", "") or "").lower() or \
             "free" in (row.get("pricing_model", "") or "").lower():
         s += 10
-    s += 5 * (int(row.get("upvotes", 0) or 0) // 100)
+    upvotes = int(row.get("upvotes", 0) or 0)
+    # popularity bonus, capped so it can't dominate niche signals
+    s += min(15, 5 * (upvotes // 100))
+    # niche bonus: monetizable, single-platform, still under the radar
+    if monetizable and len(platforms) <= 1 and upvotes < 100:
+        s += 15
     return s
 
 

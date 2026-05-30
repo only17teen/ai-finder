@@ -20,8 +20,28 @@ def test_score_minimal():
 def test_score_low_commission_no_bonus():
     row = {"has_api": 1, "has_referral": 1, "referral_commission": "10%",
            "platforms": "hn", "upvotes": 0}
-    # 30 + 25, no commission bonus (<=20), single platform
-    assert score_service(row) == 55
+    # 30 + 25, no commission bonus (<=20), single platform,
+    # + 15 niche bonus (monetizable, 1 platform, <100 upvotes) = 70
+    assert score_service(row) == 70
+
+
+def test_niche_bonus_applies_to_under_the_radar():
+    niche = {"has_api": 1, "has_referral": 0, "platforms": "reddit",
+             "upvotes": 5}
+    # 30 api + 15 niche bonus = 45
+    assert score_service(niche) == 45
+
+
+def test_no_niche_bonus_when_popular_or_multiplatform():
+    multi = {"has_api": 1, "platforms": "hn,producthunt", "upvotes": 5}
+    assert score_service(multi) == 30 + 15  # multi-platform bonus, no niche
+    popular = {"has_api": 1, "platforms": "hn", "upvotes": 500}
+    assert score_service(popular) == 30 + 15  # capped popularity, no niche
+
+
+def test_popularity_bonus_capped():
+    a = {"has_api": 0, "platforms": "hn", "upvotes": 1000}  # not monetizable
+    assert score_service(a) == 15  # cap, no niche (not monetizable)
 
 
 def test_categorize():
