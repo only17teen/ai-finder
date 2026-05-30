@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import json
 import logging
 import sys
 
@@ -134,14 +135,25 @@ def cmd_export(db: DB, out: str, min_score: int = 0,
     print(f"Exported {len(rows)} services to {out}")
 
 
-def cmd_top(db: DB, limit: int) -> None:
-    for r in db.top(limit):
+def cmd_top(db: DB, limit: int, as_json: bool = False) -> None:
+    rows = db.top(limit)
+    if as_json:
+        cols = ["domain", "name", "category", "score", "has_api",
+                "has_referral", "referral_commission", "api_docs_url",
+                "referral_url"]
+        print(json.dumps([{c: r[c] for c in cols} for r in rows],
+                         ensure_ascii=False, indent=2))
+        return
+    for r in rows:
         print(f"  [{r['score']:>3}] {r['category'] or '-':<11} "
               f"{r['domain']:<30} api={r['has_api']} ref={r['has_referral']}")
 
 
-def cmd_status(db: DB) -> None:
+def cmd_status(db: DB, as_json: bool = False) -> None:
     s = db.stats()
+    if as_json:
+        print(json.dumps(s, indent=2))
+        return
     print(f"total={s['total']} verified={s['verified']} "
           f"with_api={s['with_api']} with_referral={s['with_referral']}")
 
@@ -167,8 +179,11 @@ def main(argv: list[str] | None = None) -> int:
     p_exp.add_argument("--min-score", type=int, default=0)
     p_exp.add_argument("--all", action="store_true",
                        help="include API-only services (drop referral requirement)")
-    p_top = sub.add_parser("top"); p_top.add_argument("--limit", type=int, default=20)
-    sub.add_parser("status")
+    p_top = sub.add_parser("top")
+    p_top.add_argument("--limit", type=int, default=20)
+    p_top.add_argument("--json", action="store_true")
+    p_status = sub.add_parser("status")
+    p_status.add_argument("--json", action="store_true")
     sub.add_parser("sources")
     args = ap.parse_args(argv)
 
@@ -195,9 +210,9 @@ def main(argv: list[str] | None = None) -> int:
                 cmd_export(db, args.out, min_score=args.min_score,
                            require_referral=not args.all)
             elif args.cmd == "top":
-                cmd_top(db, args.limit)
+                cmd_top(db, args.limit, as_json=args.json)
             elif args.cmd == "status":
-                cmd_status(db)
+                cmd_status(db, as_json=args.json)
         finally:
             db.close()
         return 0

@@ -132,3 +132,31 @@ def test_cli_run_rejects_invalid_source():
     import pytest
     with pytest.raises(SystemExit):
         cli.main(["run", "--source", "nonsense"])
+
+
+def test_cli_top_json(tmp_path, capsys):
+    import json
+    cfile = tmp_path / "c.toml"
+    dbfile = tmp_path / "j.db"
+    cfile.write_text(f'db_path = "{dbfile}"\n')
+    db = DB(dbfile)
+    sid, _ = db.upsert_candidate(Candidate(url="https://a.ai", name="A",
+                                           source_platform="hn"))
+    db.update_service(sid, score=42, category="code", has_api=1)
+    db.close()
+    rc = cli.main(["--config", str(cfile), "top", "--json"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data[0]["domain"] == "a.ai" and data[0]["score"] == 42
+
+
+def test_cli_status_json(tmp_path, capsys):
+    import json
+    cfile = tmp_path / "c.toml"
+    dbfile = tmp_path / "s.db"
+    cfile.write_text(f'db_path = "{dbfile}"\n')
+    DB(dbfile).close()
+    rc = cli.main(["--config", str(cfile), "status", "--json"])
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)
+    assert set(data) == {"total", "verified", "with_api", "with_referral"}
