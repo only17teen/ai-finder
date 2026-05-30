@@ -47,8 +47,10 @@ cp config.toml.example config.toml        # then edit / set env vars
 
 python -m ai_finder.main run              # full pipeline (all enabled sources)
 python -m ai_finder.main run --source reddit
+python -m ai_finder.main sources          # list collectors and on/off state
 python -m ai_finder.main top --limit 30   # highest-scoring finds
-python -m ai_finder.main export --out ai_services.csv
+python -m ai_finder.main export --out ai_services.csv          # API + referral
+python -m ai_finder.main export --all --min-score 30           # API-only, score>=30
 python -m ai_finder.main status
 python -m ai_finder.main verify --url geekai.co
 ```

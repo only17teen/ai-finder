@@ -110,8 +110,22 @@ async def cmd_verify(url: str) -> None:
         print(f"  {k:<20} {f.get(k)}")
 
 
-def cmd_export(db: DB, out: str) -> None:
-    rows = [r for r in db.all_services() if r["has_api"] and r["has_referral"]]
+def cmd_export(db: DB, out: str, min_score: int = 0,
+               require_referral: bool = True) -> None:
+    """Export services to CSV.
+
+    Default: those with API *and* referral. `--all` drops the referral
+    requirement; `--min-score` filters by score.
+    """
+    def keep(r) -> bool:
+        if r["score"] < min_score:
+            return False
+        if require_referral:
+            return bool(r["has_api"] and r["has_referral"])
+        return bool(r["has_api"])
+
+    rows = [r for r in db.all_services() if keep(r)]
+    rows.sort(key=lambda r: r["score"], reverse=True)
     with open(out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=EXPORT_COLS, extrasaction="ignore")
         w.writeheader()
@@ -148,7 +162,11 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--source", default=None, choices=SOURCE_NAMES,
                        metavar="NAME", help="one of: " + ", ".join(SOURCE_NAMES))
     p_ver = sub.add_parser("verify"); p_ver.add_argument("--url", required=True)
-    p_exp = sub.add_parser("export"); p_exp.add_argument("--out", default="ai_services.csv")
+    p_exp = sub.add_parser("export")
+    p_exp.add_argument("--out", default="ai_services.csv")
+    p_exp.add_argument("--min-score", type=int, default=0)
+    p_exp.add_argument("--all", action="store_true",
+                       help="include API-only services (drop referral requirement)")
     p_top = sub.add_parser("top"); p_top.add_argument("--limit", type=int, default=20)
     sub.add_parser("status")
     sub.add_parser("sources")
@@ -174,7 +192,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.cmd == "run":
                 asyncio.run(cmd_run(db, cfg, args.source))
             elif args.cmd == "export":
-                cmd_export(db, args.out)
+                cmd_export(db, args.out, min_score=args.min_score,
+                           require_referral=not args.all)
             elif args.cmd == "top":
                 cmd_top(db, args.limit)
             elif args.cmd == "status":

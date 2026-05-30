@@ -90,6 +90,34 @@ def test_collect_isolates_source_failure(tmp_path, monkeypatch):
     db.close()
 
 
+def test_export_all_and_min_score(tmp_path):
+    db = DB(tmp_path / "t.db")
+    # api+referral, high score
+    a, _ = db.upsert_candidate(Candidate(url="https://a.ai", name="A",
+                                         source_platform="hn"))
+    db.update_service(a, has_api=1, has_referral=1, score=80)
+    # api only, mid score
+    b, _ = db.upsert_candidate(Candidate(url="https://b.ai", name="B",
+                                         source_platform="hn"))
+    db.update_service(b, has_api=1, has_referral=0, score=40)
+    # api only, low score
+    c, _ = db.upsert_candidate(Candidate(url="https://c.ai", name="C",
+                                         source_platform="hn"))
+    db.update_service(c, has_api=1, has_referral=0, score=10)
+
+    # default: only api+referral -> just A
+    out1 = tmp_path / "default.csv"
+    cli.cmd_export(db, str(out1))
+    assert {r["domain"] for r in csv.DictReader(open(out1))} == {"a.ai"}
+
+    # --all with min-score 30 -> A and B (C filtered by score)
+    out2 = tmp_path / "all.csv"
+    cli.cmd_export(db, str(out2), min_score=30, require_referral=False)
+    domains = [r["domain"] for r in csv.DictReader(open(out2))]
+    assert domains == ["a.ai", "b.ai"]  # sorted by score desc
+    db.close()
+
+
 def test_cli_sources_lists(tmp_path, capsys):
     cfile = tmp_path / "c.toml"
     cfile.write_text('[sources]\nhackernews = true\nreddit = false\n')
