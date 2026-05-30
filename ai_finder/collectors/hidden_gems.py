@@ -164,14 +164,8 @@ async def fetch_candidates() -> list[Candidate]:
                         out.append(c)
             except Exception:
                 pass
-    uniq: dict[str, Candidate] = {}
-    for c in out:
-        if c.domain:
-            # keep the higher-upvote variant on domain collision
-            cur = uniq.get(c.domain)
-            if not cur or c.upvotes > cur.upvotes:
-                uniq[c.domain] = c
-    return list(uniq.values())
+    from ._base import dedup_by_domain
+    return dedup_by_domain(out, prefer_higher_upvotes=True)
 
 
 async def collect(db: DB) -> int:

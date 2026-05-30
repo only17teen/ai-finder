@@ -52,16 +52,8 @@ def extract_candidates(html: str, source_url: str) -> list[Candidate]:
 
 
 async def fetch_candidates() -> list[Candidate]:
-    from ..net import fetch_all
-    out: list[Candidate] = []
-    responses = await fetch_all(SOURCES)
-    for url, r in zip(SOURCES, responses):
-        if r:
-            out.extend(extract_candidates(r.text, url))
-    uniq: dict[str, Candidate] = {}
-    for c in out:
-        uniq.setdefault(c.domain, c)
-    return list(uniq.values())
+    from ._base import html_collect
+    return await html_collect(SOURCES, extract_candidates)
 
 
 async def collect(db: DB) -> int:

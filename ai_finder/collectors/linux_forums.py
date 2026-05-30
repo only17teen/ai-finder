@@ -16,11 +16,11 @@ from ..keywords import is_ai_related
 
 PLATFORM = "linux_forum"
 
-# (name, page_url) — public listing/search pages likely to mention AI tools.
-SOURCES: list[tuple[str, str]] = [
-    ("lwn", "https://lwn.net/"),
-    ("phoronix", "https://www.phoronix.com/"),
-    ("itsfoss", "https://news.itsfoss.com/"),
+# Public listing/search pages likely to mention AI tools.
+SOURCES = [
+    "https://lwn.net/",
+    "https://www.phoronix.com/",
+    "https://news.itsfoss.com/",
 ]
 
 # Domains we never treat as discovered services.
@@ -67,18 +67,8 @@ def extract_candidates(html: str, forum_url: str) -> list[Candidate]:
 
 
 async def fetch_candidates() -> list[Candidate]:
-    from ..net import fetch_all
-    urls = [url for _name, url in SOURCES]
-    responses = await fetch_all(urls)
-    out: list[Candidate] = []
-    for url, r in zip(urls, responses):
-        if r:
-            out.extend(extract_candidates(r.text, url))
-    # dedup across forums by domain
-    uniq: dict[str, Candidate] = {}
-    for c in out:
-        uniq.setdefault(c.domain, c)
-    return [c for c in uniq.values() if c.domain]
+    from ._base import html_collect
+    return await html_collect(SOURCES, extract_candidates)
 
 
 async def collect(db: DB) -> int:

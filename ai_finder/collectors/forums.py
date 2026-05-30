@@ -84,12 +84,8 @@ async def fetch_candidates() -> list[Candidate]:
                 c = lemmy_post_to_candidate(pv)
                 if c:
                     out.append(c)
-    uniq: dict[str, Candidate] = {}
-    for c in out:
-        cur = uniq.get(c.domain)
-        if not cur or c.upvotes > cur.upvotes:
-            uniq[c.domain] = c
-    return list(uniq.values())
+    from ._base import dedup_by_domain
+    return dedup_by_domain(out, prefer_higher_upvotes=True)
 
 
 async def collect(db: DB) -> int:

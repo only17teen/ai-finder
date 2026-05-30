@@ -144,10 +144,8 @@ async def fetch_candidates(sources: list[str] | None = None,
             c = extract_outbound(dhtml, detail_url)
             if c and c.domain:
                 out.append(c)
-    uniq: dict[str, Candidate] = {}
-    for c in out:
-        uniq.setdefault(c.domain, c)
-    return list(uniq.values())
+    from ._base import dedup_by_domain
+    return dedup_by_domain(out)
 
 
 async def collect(db: DB, sources: list[str] | None = None) -> int:

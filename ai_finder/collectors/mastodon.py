@@ -60,10 +60,8 @@ async def fetch_candidates() -> list[Candidate]:
             c = card_to_candidate(t.get("card"))
             if c:
                 out.append(c)
-    uniq: dict[str, Candidate] = {}
-    for c in out:
-        uniq.setdefault(c.domain, c)
-    return list(uniq.values())
+    from ._base import dedup_by_domain
+    return dedup_by_domain(out)
 
 
 async def collect(db: DB) -> int:

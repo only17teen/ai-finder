@@ -90,12 +90,8 @@ async def fetch_candidates() -> list[Candidate]:
                                          int(a.get("liked_count") or 0))
         except Exception:
             pass
-    uniq: dict[str, Candidate] = {}
-    for c in out:
-        cur = uniq.get(c.domain)
-        if not cur or c.upvotes > cur.upvotes:
-            uniq[c.domain] = c
-    return list(uniq.values())
+    from ._base import dedup_by_domain
+    return dedup_by_domain(out, prefer_higher_upvotes=True)
 
 
 def httpx_client():

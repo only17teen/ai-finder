@@ -75,11 +75,8 @@ async def fetch_candidates(limit: int = 25) -> list[Candidate]:
             )
 
         results = await asyncio.gather(*[_one(r) for r in repos])
-    uniq: dict[str, Candidate] = {}
-    for c in results:
-        if c and c.domain:
-            uniq.setdefault(c.domain, c)
-    return list(uniq.values())
+    from ._base import dedup_by_domain
+    return dedup_by_domain([c for c in results if c])
 
 
 async def collect(db: DB, limit: int = 25) -> int:
