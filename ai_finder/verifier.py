@@ -1,0 +1,191 @@
+"""Site verifier: detect API docs, referral program, pricing, and metadata.
+
+`analyze_html` is a pure function (unit-tested with fixtures). `verify` renders
+a live site with Playwright and runs the analysis. Results update the DB.
+"""
+from __future__ import annotations
+
+import asyncio
+import re
+from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup
+
+from .db import DB
+from .browser import render
+
+# Path/keyword signals for each capability.
+API_PATHS = ("/api", "/docs", "/documentation", "/developer", "/developers",
+             "/reference", "swagger", "openapi", "/api-docs",
+             "/open", "/openapi", "/kaifa", "/wendang")  # 开放平台/开发/文档
+API_TEXT = ("api", "api key", "api reference", "developer", "rest api",
+            "graphql", "sdk", "documentation",
+            "开放平台", "开发者", "接口", "开发文档", "api文档", "调用")
+
+REFERRAL_PATHS = ("/affiliate", "/affiliates", "/referral", "/refer",
+                  "/partner", "/partners",
+                  "/fenxiao", "/tuiguang", "/yaoqing", "/hehuoren")
+REFERRAL_TEXT = ("affiliate", "referral", "refer a friend", "earn commission",
+                 "invite friends", "earn", "commission", "partner program",
+                 "分销", "推广", "邀请", "返佣", "佣金", "合伙人", "推荐奖励",
+                 "联盟", "分成")
+
+PRICING_PATHS = ("/pricing", "/plans", "/price", "/billing",
+                 "/jiage", "/huiyuan", "/vip", "/chongzhi")
+PRICING_TEXT = ("pricing", "free tier", "pay as you go", "/month", "per month",
+                "subscription", "free trial",
+                "价格", "定价", "会员", "套餐", "充值", "免费试用", "订阅",
+                "元/月", "积分")
+
+_COMMISSION_RE = re.compile(
+    r"(\d{1,3})\s*%\s*(?:recurring\s*)?(?:commission|cut|payout|revenue|rev[\s-]?share)"
+    r"|earn\s+(?:up\s+to\s+)?(\d{1,3})\s*%"
+    r"|(?:返佣|佣金|分成|提成|返现|奖励)\s*(?:高达\s*)?(\d{1,3})\s*%"
+    r"|(\d{1,3})\s*%\s*(?:返佣|佣金|分成|提成|返现)",
+    re.I,
+)
+
+
+def _links(soup: BeautifulSoup, base_url: str):
+    """Yield (absolute_url, lowercased_anchor_text, lowercased_href)."""
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
+        if href.startswith(("mailto:", "javascript:", "#")):
+            continue
+        text = a.get_text(" ", strip=True).lower()
+        yield urljoin(base_url, href), text, href.lower()
+
+
+def _match(links, page_text, paths, texts):
+    """Return matching URL (or '') if any path/anchor/page signal is present."""
+    for url, anchor, href in links:
+        if any(p in href for p in paths) or any(t == anchor or t in anchor for t in texts):
+            return url
+    # fallback: keyword present in page body (no specific link)
+    return "" if not any(t in page_text for t in texts) else "__text__"
+
+
+def extract_commission(text: str) -> str:
+    m = _COMMISSION_RE.search(text or "")
+    if not m:
+        return ""
+    pct = next((g for g in m.groups() if g), None)
+    return f"{pct}%" if pct else ""
+
+
+def analyze_html(html: str, base_url: str) -> dict:
+    """Pure: inspect a rendered page and report capabilities found."""
+    soup = BeautifulSoup(html, "html.parser")
+    links = list(_links(soup, base_url))
+    body_text = soup.get_text(" ", strip=True).lower()
+
+    api_url = _match(links, body_text, API_PATHS, API_TEXT)
+    ref_url = _match(links, body_text, REFERRAL_PATHS, REFERRAL_TEXT)
+    price_url = _match(links, body_text, PRICING_PATHS, PRICING_TEXT)
+
+    title = (soup.title.get_text(strip=True) if soup.title else "")
+    desc_el = soup.find("meta", attrs={"name": "description"}) or \
+        soup.find("meta", attrs={"property": "og:description"})
+    description = desc_el.get("content", "").strip() if desc_el else ""
+    og = soup.find("meta", attrs={"property": "og:image"})
+
+    def clean(u: str) -> str:
+        return "" if u in ("", "__text__") else u
+
+    return {
+        "has_api": bool(api_url),
+        "api_docs_url": clean(api_url),
+        "has_referral": bool(ref_url),
+        "referral_url": clean(ref_url),
+        "referral_commission": extract_commission(body_text),
+        "pricing_info": "found" if price_url else "",
+        "pricing_model": clean(price_url),
+        "name": title[:120],
+        "description": description[:300],
+        "og_image": og.get("content", "") if og else "",
+    }
+
+
+async def verify(url: str) -> dict:
+    """Render `url` and analyze it. Returns findings (empty dict on failure)."""
+    html = await render(url if "://" in url else f"https://{url}")
+    if not html:
+        return {}
+    return analyze_html(html, url if "://" in url else f"https://{url}")
+
+
+def _persist_fields(row, findings: dict) -> dict:
+    """Pure: build the DB update dict from findings (no I/O)."""
+    import time
+    fields = {"last_checked": time.time()}
+    if findings:
+        fields.update({
+            "has_api": int(findings["has_api"]),
+            "api_docs_url": findings["api_docs_url"],
+            "has_referral": int(findings["has_referral"]),
+            "referral_url": findings["referral_url"],
+            "referral_commission": findings["referral_commission"],
+            "pricing_info": findings["pricing_info"],
+            "pricing_model": findings["pricing_model"],
+            "verified_at": time.time(),
+            "status": "verified",
+        })
+        if findings["name"] and not row["name"]:
+            fields["name"] = findings["name"]
+        if findings["description"]:
+            fields["description"] = findings["description"]
+    else:
+        fields["status"] = "unreachable"
+    return fields
+
+
+def _row_url(row) -> str:
+    raw = row["source_url"] or row["domain"]
+    return raw if "://" in raw else f"https://{raw}"
+
+
+async def verify_service(db: DB, service_id: int) -> dict:
+    """Verify a stored service and persist the findings."""
+    row = db.get(service_id)
+    if not row:
+        return {}
+    findings = await verify(row["source_url"] or row["domain"])
+    db.update_service(service_id, **_persist_fields(row, findings))
+    return findings
+
+
+async def verify_services_batch(db: DB, service_ids: list[int],
+                                concurrency: int = 6) -> int:
+    """Verify many services reusing ONE browser. Returns count processed.
+
+    Renders all target URLs in a single browser instance (big speedup over
+    one browser per site), then analyzes + persists each.
+    """
+    from .browser import render_many
+    rows = [db.get(sid) for sid in service_ids]
+    rows = [r for r in rows if r]
+    urls = {r["id"]: _row_url(r) for r in rows}
+    html_by_url = await render_many(list(urls.values()), concurrency=concurrency)
+    for r in rows:
+        html = html_by_url.get(urls[r["id"]], "")
+        findings = analyze_html(html, urls[r["id"]]) if html else {}
+        db.update_service(r["id"], **_persist_fields(r, findings))
+    return len(rows)
+
+
+if __name__ == "__main__":
+    import sys
+    target = sys.argv[sys.argv.index("--url") + 1] if "--url" in sys.argv else "geekai.co"
+
+    async def _main():
+        print(f"Verifying {target} ...")
+        f = await verify(target)
+        if not f:
+            print("  unreachable / no HTML")
+            return
+        print(f"  name:       {f['name']}")
+        print(f"  api:        {f['has_api']}  {f['api_docs_url']}")
+        print(f"  referral:   {f['has_referral']}  {f['referral_url']}  {f['referral_commission']}")
+        print(f"  pricing:    {f['pricing_info']}  {f['pricing_model']}")
+        print(f"  desc:       {f['description'][:100]}")
+    asyncio.run(_main())

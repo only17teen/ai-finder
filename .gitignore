@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Project data & secrets
+*.db
+*.log
+# config.toml may contain tokens — keep it local, commit config.toml.example
+config.toml
+# telethon session
+ai_finder.session
+
+# OS
+.DS_Store

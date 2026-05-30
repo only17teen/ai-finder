@@ -1,0 +1,41 @@
+# AI Finder configuration.
+# Secrets can also be supplied via env vars (preferred):
+#   APIFY_TOKEN, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
+#   TELEGRAM_API_ID, TELEGRAM_API_HASH
+
+db_path = "ai_finder.db"
+
+[sources]            # enable/disable each collector
+hackernews = true
+linux_forums = true
+apify = false        # needs apify.token
+ai_directories = true
+github_trending = true
+hidden_gems = true   # 中国/EU niche directories + HuggingFace Spaces
+foss = true          # Lobsters/Slashdot/HN-newest/self-hosted lists
+forums = true        # Lemmy (federated FOSS) + dev.to
+asian_dev = true     # V2EX (CN) + Qiita/Zenn (JP) dev communities
+launch = true        # MicroLaunch + TinyLaunch ultra-early indie launches
+reddit = true        # niche AI subreddits via public RSS
+telegram = false     # needs telegram.api_id/api_hash/channels
+
+[limits]
+hackernews = 100
+github_trending = 25
+
+[rate]
+per_domain_delay = 1.0   # seconds between requests to the same host
+max_retries = 3
+
+[notify]
+threshold = 50           # min score to push a Telegram alert
+
+[apify]
+token = ""               # or set APIFY_TOKEN
+
+[telegram]
+api_id = 0               # or TELEGRAM_API_ID  (for Telethon channel reading)
+api_hash = ""            # or TELEGRAM_API_HASH
+channels = []            # e.g. ["aichannel", "neural_news"]
+bot_token = ""           # or TELEGRAM_BOT_TOKEN  (for notifications)
+chat_id = ""             # or TELEGRAM_CHAT_ID
