@@ -196,3 +196,20 @@ def test_probe_circuit_breaker_aborts(monkeypatch):
     out = asyncio.run(verifier._probe_missing("https://dead.example", base))
     assert calls["n"] == 3        # breaker stops at 3 consecutive failures
     assert out["has_api"] is False
+
+
+def test_detect_affiliate_platform():
+    from ai_finder.verifier import detect_affiliate_platform
+    assert detect_affiliate_platform(
+        '<script src="https://r.rewardful.com/x"></script>') == "Rewardful"
+    assert detect_affiliate_platform("powered by PartnerStack") == "PartnerStack"
+    assert detect_affiliate_platform('<a href="https://x.fprom.co/y">') == "FirstPromoter"
+    assert detect_affiliate_platform("just a normal page") == ""
+
+
+def test_analyze_html_reports_affiliate_platform():
+    html = ('<html><head><title>X</title></head><body>'
+            '<a href="/affiliate">Affiliate</a> earn 30% commission'
+            '<script src="https://r.rewardful.com/q"></script></body></html>')
+    r = analyze_html(html, "https://x.ai")
+    assert r["has_referral"] and r["affiliate_platform"] == "Rewardful"

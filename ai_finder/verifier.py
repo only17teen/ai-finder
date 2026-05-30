@@ -45,6 +45,34 @@ _COMMISSION_RE = re.compile(
     re.I,
 )
 
+# Affiliate-network fingerprints -> platform name. Tells you which network to
+# sign up through for a service's referral program.
+_AFFILIATE_SIGNATURES = {
+    "rewardful": "Rewardful",
+    "getrewardful": "Rewardful",
+    "firstpromoter": "FirstPromoter",
+    "fprom.co": "FirstPromoter",
+    "partnerstack": "PartnerStack",
+    "growsumo": "PartnerStack",
+    "tolt.io": "Tolt",
+    "gettolt": "Tolt",
+    "lemonsqueezy": "LemonSqueezy",
+    "tapfiliate": "Tapfiliate",
+    "impact.com": "Impact",
+    "promotekit": "PromoteKit",
+    "affonso": "Affonso",
+    "reditus": "Reditus",
+}
+
+
+def detect_affiliate_platform(html: str) -> str:
+    """Pure: identify the affiliate network powering a site, or '' if none."""
+    text = (html or "").lower()
+    for sig, name in _AFFILIATE_SIGNATURES.items():
+        if sig in text:
+            return name
+    return ""
+
 
 def _links(soup: BeautifulSoup, base_url: str):
     """Yield (absolute_url, lowercased_anchor_text, lowercased_href)."""
@@ -98,6 +126,7 @@ def analyze_html(html: str, base_url: str) -> dict:
         "has_referral": bool(ref_url),
         "referral_url": clean(ref_url),
         "referral_commission": extract_commission(body_text),
+        "affiliate_platform": detect_affiliate_platform(html),
         "pricing_info": "found" if price_url else "",
         "pricing_model": clean(price_url),
         "name": title[:120],
@@ -138,6 +167,8 @@ def merge_findings(base: dict, probed: dict) -> dict:
         out["referral_url"] = probed.get("referral_url") or probed["__url__"]
         if not out.get("referral_commission"):
             out["referral_commission"] = probed.get("referral_commission", "")
+    if not out.get("affiliate_platform") and probed.get("affiliate_platform"):
+        out["affiliate_platform"] = probed["affiliate_platform"]
     if not out.get("pricing_info") and probed.get("pricing_info"):
         out["pricing_info"] = "found"
         out["pricing_model"] = probed.get("pricing_model") or probed["__url__"]
@@ -192,6 +223,7 @@ def _persist_fields(row, findings: dict) -> dict:
             "has_referral": int(findings["has_referral"]),
             "referral_url": findings["referral_url"],
             "referral_commission": findings["referral_commission"],
+            "affiliate_platform": findings.get("affiliate_platform", ""),
             "pricing_info": findings["pricing_info"],
             "pricing_model": findings["pricing_model"],
             "verified_at": time.time(),
@@ -253,6 +285,7 @@ if __name__ == "__main__":
         print(f"  name:       {f['name']}")
         print(f"  api:        {f['has_api']}  {f['api_docs_url']}")
         print(f"  referral:   {f['has_referral']}  {f['referral_url']}  {f['referral_commission']}")
+        print(f"  platform:   {f.get('affiliate_platform') or '-'}")
         print(f"  pricing:    {f['pricing_info']}  {f['pricing_model']}")
         print(f"  desc:       {f['description'][:100]}")
     asyncio.run(_main())

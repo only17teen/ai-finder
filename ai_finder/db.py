@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS services (
     has_referral INTEGER DEFAULT 0,
     referral_url TEXT,
     referral_commission TEXT,
+    affiliate_platform TEXT,
     pricing_info TEXT,
     pricing_model TEXT,
     category TEXT,
@@ -156,7 +157,16 @@ class DB:
         self.conn = sqlite3.connect(self.path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self):
+        """Add columns introduced after a DB was first created (idempotent)."""
+        cols = {r["name"] for r in self.conn.execute(
+            "PRAGMA table_info(services)")}
+        for col in ("affiliate_platform",):
+            if col not in cols:
+                self.conn.execute(f"ALTER TABLE services ADD COLUMN {col} TEXT")
 
     def close(self):
         self.conn.close()
