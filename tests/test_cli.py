@@ -79,8 +79,8 @@ def test_collect_isolates_source_failure(tmp_path, monkeypatch):
     async def boom(*a, **k):
         raise RuntimeError("source down")
 
-    monkeypatch.setattr(cli.hackernews, "collect", ok)
-    monkeypatch.setattr(cli.reddit_rss, "collect", boom)
+    monkeypatch.setattr(cli.pipeline.hackernews, "collect", ok)
+    monkeypatch.setattr(cli.pipeline.reddit_rss, "collect", boom)
     # disable everything except the two we control
     for s in cfg["sources"]:
         cfg["sources"][s] = s in ("hackernews", "reddit")
