@@ -133,20 +133,21 @@ def hf_space_to_candidate(space: dict) -> Candidate | None:
 
 
 async def fetch_candidates() -> list[Candidate]:
-    from ..net import RateLimiter, fetch
+    from ..net import RateLimiter, fetch, fetch_text
     limiter = RateLimiter(per_domain_delay=1.0)
     out: list[Candidate] = []
     async with httpx.AsyncClient(follow_redirects=True, verify=False) as client:
         for url in HTML_SOURCES:
-            r = await fetch(client, url, limiter=limiter)
-            if r:
-                out.extend(extract_from_directory(r.text, url))
+            html = await fetch_text(client, url, limiter=limiter, stealth=True)
+            if html:
+                out.extend(extract_from_directory(html, url))
         # rankmyai region rankings -> detail pages -> outbound sites.
         for region_url in RANKMYAI_REGIONS:
-            r = await fetch(client, region_url, limiter=limiter)
-            if not r:
+            html = await fetch_text(client, region_url, limiter=limiter,
+                                    stealth=True)
+            if not html:
                 continue
-            details = extract_rankmyai_links(r.text)[:15]
+            details = extract_rankmyai_links(html)[:15]
             pages = await asyncio.gather(
                 *[fetch(client, d, limiter=limiter) for d in details])
             for pr in pages:
