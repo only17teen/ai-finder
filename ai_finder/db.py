@@ -4,10 +4,10 @@ from __future__ import annotations
 import sqlite3
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field
 from pathlib import Path
 
-# URL/domain utilities live in urls.py; re-exported for backward compat.
+# Models + URL utilities live in their own modules; re-exported for compat.
+from .models import Candidate as Candidate
 from .urls import (
     NEWS_DOMAINS as NEWS_DOMAINS,
 )
@@ -72,21 +72,6 @@ CREATE TABLE IF NOT EXISTS service_history (
 CREATE INDEX IF NOT EXISTS idx_services_status ON services(status);
 CREATE INDEX IF NOT EXISTS idx_services_score ON services(score DESC);
 """
-
-
-@dataclass
-class Candidate:
-    """A discovered service candidate before verification."""
-    url: str
-    name: str = ""
-    description: str = ""
-    source_platform: str = ""
-    upvotes: int = 0
-    domain: str = field(default="")
-
-    def __post_init__(self):
-        if not self.domain:
-            self.domain = domain_of(self.url)
 
 
 class DB:
