@@ -33,8 +33,33 @@ def _merge(base: dict, over: dict) -> dict:
     return out
 
 
+def load_dotenv(path: str | Path = ".env") -> int:
+    """Load KEY=VALUE lines from a .env file into os.environ.
+
+    Minimal parser, no dependency. Skips blanks/comments; strips surrounding
+    quotes; does NOT overwrite vars already set in the environment. Returns the
+    number of keys loaded.
+    """
+    p = Path(path)
+    if not p.exists():
+        return 0
+    loaded = 0
+    for line in p.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = val
+            loaded += 1
+    return loaded
+
+
 def load(path: str | Path = DEFAULT_PATH) -> dict:
-    """Load config.toml merged over defaults; env vars override secrets."""
+    """Load config.toml merged over defaults; .env + env vars override secrets."""
+    load_dotenv()  # populate os.environ from .env first (if present)
     cfg = dict(DEFAULTS)
     p = Path(path)
     if p.exists():

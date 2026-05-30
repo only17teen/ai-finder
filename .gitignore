@@ -10,6 +10,8 @@ __pycache__/
 *.log
 # config.toml may contain tokens — keep it local, commit config.toml.example
 config.toml
+# .env holds secrets — keep local, commit .env.example
+.env
 # telethon session
 ai_finder.session
 

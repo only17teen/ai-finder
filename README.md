@@ -76,7 +76,8 @@ Cron (every 6h):
 ## Configuration
 
 Edit `config.toml` (toggle sources, rate limits, score threshold). **Secrets** are read
-from env vars and never committed:
+from environment variables — or a local `.env` file (copy `.env.example`) — and never
+committed (real env vars take precedence over `.env`):
 
 | Env var | Used by |
 |---------|---------|
@@ -87,7 +88,7 @@ from env vars and never committed:
 ## Tests
 
 ```bash
-python -m pytest        # 132 tests
+python -m pytest        # 143 tests
 ```
 
 Parsing/scoring logic is written as pure functions, unit-tested with fixtures (no
