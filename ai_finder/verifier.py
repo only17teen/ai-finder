@@ -158,17 +158,22 @@ async def _probe_missing(base_url: str, findings: dict) -> dict:
         follow_redirects=True,
         headers={"User-Agent": "Mozilla/5.0 (ai-finder)"},
     ) as client:
+        fails = 0  # consecutive connection failures -> circuit breaker
         for cap in needed:
             for path in _PROBE_PATHS[cap]:
+                if fails >= 3:
+                    return findings  # host is flaky/dead — stop wasting requests
                 if findings.get({"api": "has_api", "referral": "has_referral",
                                  "pricing": "pricing_info"}[cap]):
                     break
                 target = urljoin(base_url, path)
                 try:
                     r = await client.get(target, timeout=8)
-                    if r.status_code != 200 or not r.text:
-                        continue
                 except Exception:
+                    fails += 1
+                    continue
+                fails = 0
+                if r.status_code != 200 or not r.text:
                     continue
                 probed = analyze_html(r.text, target)
                 probed["__url__"] = target

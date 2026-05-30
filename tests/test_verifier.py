@@ -166,3 +166,33 @@ def test_merge_findings_no_overwrite_when_present():
                                 "api_docs_url": "https://other/docs",
                                 "__url__": "https://other/docs"})
     assert out["api_docs_url"] == "https://x.ai/api"   # unchanged
+
+
+def test_probe_circuit_breaker_aborts(monkeypatch):
+    """After 3 consecutive connection failures, probing stops early."""
+    import asyncio
+
+    import httpx
+
+    from ai_finder import verifier
+
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        raise httpx.ConnectError("boom")
+
+    transport = httpx.MockTransport(handler)
+    OrigClient = httpx.AsyncClient
+
+    class FakeClient(OrigClient):
+        def __init__(self, *a, **k):
+            k.pop("transport", None)
+            super().__init__(transport=transport, **k)
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+
+    base = {"has_api": False, "has_referral": False, "pricing_info": ""}
+    out = asyncio.run(verifier._probe_missing("https://dead.example", base))
+    assert calls["n"] == 3        # breaker stops at 3 consecutive failures
+    assert out["has_api"] is False
