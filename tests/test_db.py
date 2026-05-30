@@ -83,6 +83,22 @@ def test_update_and_tags(db):
     assert tags == ["code"]
 
 
+def test_search(db):
+    a, _ = db.upsert_candidate(Candidate(url="https://imagegen.ai",
+                                         name="ImageGen", source_platform="hn"))
+    db.update_service(a, category="image", score=70, description="AI art tool")
+    b, _ = db.upsert_candidate(Candidate(url="https://codehelper.dev",
+                                         name="CodeHelper", source_platform="hn"))
+    db.update_service(b, category="code", score=30, description="coding agent")
+
+    assert {r["domain"] for r in db.search(keyword="image")} == {"imagegen.ai"}
+    assert {r["domain"] for r in db.search(keyword="agent")} == {"codehelper.dev"}
+    assert {r["domain"] for r in db.search(category="code")} == {"codehelper.dev"}
+    assert {r["domain"] for r in db.search(min_score=50)} == {"imagegen.ai"}
+    rows = db.search(min_score=0)
+    assert [r["domain"] for r in rows] == ["imagegen.ai", "codehelper.dev"]
+
+
 def test_stats(db):
     db.upsert_candidate(Candidate(url="https://a.com", source_platform="hn"))
     sid, _ = db.upsert_candidate(

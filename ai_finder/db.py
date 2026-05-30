@@ -243,6 +243,24 @@ class DB:
     def all_services(self) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM services").fetchall()
 
+    def search(self, keyword: str = "", category: str = "",
+               min_score: int = 0, limit: int = 50) -> list[sqlite3.Row]:
+        """Filter services by keyword (domain/name/description), category,
+        and minimum score. Ordered by score desc."""
+        clauses, params = ["score >= ?"], [min_score]
+        if keyword:
+            clauses.append("(domain LIKE ? OR name LIKE ? OR description LIKE ?)")
+            like = f"%{keyword}%"
+            params += [like, like, like]
+        if category:
+            clauses.append("category = ?")
+            params.append(category)
+        params.append(limit)
+        return self.conn.execute(
+            f"SELECT * FROM services WHERE {' AND '.join(clauses)} "
+            f"ORDER BY score DESC LIMIT ?", params,
+        ).fetchall()
+
     def stats(self) -> dict:
         c = self.conn
         return {

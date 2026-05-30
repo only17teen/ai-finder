@@ -167,6 +167,24 @@ def cmd_sources(cfg: dict) -> None:
         print(f"  [{state}] {name}")
 
 
+def cmd_search(db: DB, keyword: str, category: str, min_score: int,
+               limit: int, as_json: bool = False) -> None:
+    rows = db.search(keyword=keyword, category=category,
+                     min_score=min_score, limit=limit)
+    if as_json:
+        cols = ["domain", "name", "category", "score", "has_api",
+                "has_referral", "referral_commission", "api_docs_url",
+                "referral_url"]
+        print(json.dumps([{c: r[c] for c in cols} for r in rows],
+                         ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        print("No matches."); return
+    for r in rows:
+        print(f"  [{r['score']:>3}] {r['category'] or '-':<11} "
+              f"{r['domain']:<30} api={r['has_api']} ref={r['has_referral']}")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="ai-finder")
     ap.add_argument("--config", default=str(_config.DEFAULT_PATH))
@@ -187,6 +205,12 @@ def main(argv: list[str] | None = None) -> int:
     p_status = sub.add_parser("status")
     p_status.add_argument("--json", action="store_true")
     sub.add_parser("sources")
+    p_search = sub.add_parser("search")
+    p_search.add_argument("--keyword", default="")
+    p_search.add_argument("--category", default="")
+    p_search.add_argument("--min-score", type=int, default=0)
+    p_search.add_argument("--limit", type=int, default=50)
+    p_search.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
 
     if args.verbose:
@@ -215,6 +239,9 @@ def main(argv: list[str] | None = None) -> int:
                 cmd_top(db, args.limit, as_json=args.json)
             elif args.cmd == "status":
                 cmd_status(db, as_json=args.json)
+            elif args.cmd == "search":
+                cmd_search(db, args.keyword, args.category, args.min_score,
+                           args.limit, as_json=args.json)
         finally:
             db.close()
         return 0
