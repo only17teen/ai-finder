@@ -10,7 +10,7 @@ import asyncio
 
 from bs4 import BeautifulSoup
 
-from ..browser import render
+from ..browser import render_stealth as render
 from ..db import DB, Candidate, domain_of
 from ..keywords import is_ai_related, mentions_api
 
@@ -121,7 +121,7 @@ def extract_candidates(html: str, source_url: str) -> list[Candidate]:
 
 
 async def fetch_candidates(sources: list[str] | None = None,
-                           max_details: int = 20) -> list[Candidate]:
+                           max_details: int = 8) -> list[Candidate]:
     """Two-level crawl: listing -> detail pages -> outbound tool sites.
 
     Also keeps any direct outbound links found on the listing itself.
@@ -135,10 +135,10 @@ async def fetch_candidates(sources: list[str] | None = None,
             continue
         # Fast pass: direct outbound links on the listing.
         out.extend(extract_candidates(html, url))
-        # Deep pass: render per-tool detail pages, pull their outbound link.
-        details = extract_detail_links(html, url)[:max_details]
-        rendered = await asyncio.gather(*[render(d) for d in details])
-        for detail_url, dhtml in zip(details, rendered):
+        # Deep pass: render per-tool detail pages sequentially (camoufox is
+        # heavy; concurrent stealth instances are unreliable).
+        for detail_url in extract_detail_links(html, url)[:max_details]:
+            dhtml = await render(detail_url)
             if not dhtml:
                 continue
             c = extract_outbound(dhtml, detail_url)
