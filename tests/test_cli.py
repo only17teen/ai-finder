@@ -180,3 +180,19 @@ def test_cli_recheck_reports_changes(tmp_path, capsys, monkeypatch):
     out = capsys.readouterr().out
     assert rc == 0
     assert "x.ai" in out and "has_referral" in out
+
+
+def test_cli_digest(tmp_path, capsys, monkeypatch):
+    cfile = tmp_path / "c.toml"
+    dbfile = tmp_path / "d.db"
+    cfile.write_text(f'db_path = "{dbfile}"\n[telegram]\nbot_token = "t"\nchat_id = "c"\n')
+    DB(dbfile).close()
+
+    async def fake_send_digest(db, token, chat, limit):
+        assert token == "t" and chat == "c"
+        return True
+    monkeypatch.setattr("ai_finder.notifier.send_digest", fake_send_digest)
+
+    rc = cli.main(["--config", str(cfile), "digest", "--limit", "5"])
+    assert rc == 0
+    assert "Digest sent." in capsys.readouterr().out

@@ -198,6 +198,13 @@ def cmd_history(db: DB, domain: str) -> None:
         print(f"  {ts}  {r['field']}: {r['old_value']} -> {r['new_value']}")
 
 
+async def cmd_digest(db: DB, cfg: dict, limit: int) -> None:
+    tg = cfg["telegram"]
+    ok = await notifier.send_digest(db, tg["bot_token"], tg["chat_id"], limit)
+    print("Digest sent." if ok else
+          "Digest not sent (no Telegram token/chat or no services).")
+
+
 async def cmd_recheck(db: DB, max_age_days: float, only_verified: bool) -> None:
     report = await tracker.recheck_all(
         db, only_verified=only_verified, max_age_days=max_age_days)
@@ -264,6 +271,8 @@ def main(argv: list[str] | None = None) -> int:
                            help="recheck all services, not just verified/notified")
     p_hist = sub.add_parser("history")
     p_hist.add_argument("--domain", required=True)
+    p_digest = sub.add_parser("digest")
+    p_digest.add_argument("--limit", type=int, default=10)
     args = ap.parse_args(argv)
 
     if args.verbose:
@@ -302,6 +311,8 @@ def main(argv: list[str] | None = None) -> int:
                                         only_verified=not args.all))
             elif args.cmd == "history":
                 cmd_history(db, args.domain)
+            elif args.cmd == "digest":
+                asyncio.run(cmd_digest(db, cfg, args.limit))
         finally:
             db.close()
         return 0

@@ -56,6 +56,11 @@ python -m ai_finder.main export --out ai_services.csv          # API + referral
 python -m ai_finder.main export --all --min-score 30           # API-only, score>=30
 python -m ai_finder.main status
 python -m ai_finder.main verify --url geekai.co
+python -m ai_finder.main search --keyword video --category video --min-score 30
+python -m ai_finder.main recheck --max-age-days 7   # re-verify stale services
+python -m ai_finder.main history --domain geekai.co # change log
+python -m ai_finder.main prune                      # drop unreachable services
+python -m ai_finder.main digest --limit 10          # Telegram top-N digest
 ```
 
 Cron (every 6h):
@@ -77,7 +82,7 @@ from env vars and never committed:
 ## Tests
 
 ```bash
-python -m pytest        # 109 tests
+python -m pytest        # 120 tests
 ```
 
 Parsing/scoring logic is written as pure functions, unit-tested with fixtures (no
