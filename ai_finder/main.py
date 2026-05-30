@@ -207,6 +207,25 @@ def cmd_prune(db: DB, status: str) -> None:
     print(f"Pruned {n} services with status '{status}'")
 
 
+def cmd_report(db: DB, as_json: bool = False) -> None:
+    """Per-source collector stats from sources_log."""
+    rows = db.source_report()
+    if as_json:
+        cols = ["source", "runs", "candidates", "new_services", "last_run"]
+        print(json.dumps([{c: r[c] for c in cols} for r in rows], indent=2))
+        return
+    if not rows:
+        print("No collector runs logged yet.")
+        return
+    from datetime import datetime, timezone
+    print(f"{'source':<16} {'runs':>5} {'cand':>7} {'new':>6}  last_run")
+    for r in rows:
+        last = datetime.fromtimestamp(r["last_run"], timezone.utc).strftime(
+            "%Y-%m-%d %H:%M") if r["last_run"] else "-"
+        print(f"{r['source']:<16} {r['runs']:>5} {r['candidates'] or 0:>7} "
+              f"{r['new_services'] or 0:>6}  {last}")
+
+
 def cmd_links(db: DB, limit: int) -> None:
     """Print copy-friendly referral + API links for monetizable finds."""
     rows = db.monetizable(limit)
@@ -315,6 +334,8 @@ def main(argv: list[str] | None = None) -> int:
     p_digest.add_argument("--limit", type=int, default=10)
     p_links = sub.add_parser("links")
     p_links.add_argument("--limit", type=int, default=25)
+    p_report = sub.add_parser("report")
+    p_report.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
 
     if args.verbose:
@@ -358,6 +379,8 @@ def main(argv: list[str] | None = None) -> int:
                 asyncio.run(cmd_digest(db, cfg, args.limit))
             elif args.cmd == "links":
                 cmd_links(db, args.limit)
+            elif args.cmd == "report":
+                cmd_report(db, as_json=args.json)
         finally:
             db.close()
         return 0

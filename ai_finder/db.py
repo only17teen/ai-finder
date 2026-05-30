@@ -255,6 +255,17 @@ class DB:
     def all_services(self) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM services").fetchall()
 
+    def source_report(self) -> list[sqlite3.Row]:
+        """Per-source aggregate of collector runs from sources_log."""
+        return self.conn.execute(
+            "SELECT source, COUNT(*) AS runs, "
+            "SUM(candidates_found) AS candidates, "
+            "SUM(new_services) AS new_services, "
+            "MAX(run_at) AS last_run "
+            "FROM sources_log GROUP BY source "
+            "ORDER BY new_services DESC",
+        ).fetchall()
+
     def monetizable(self, limit: int = 50) -> list[sqlite3.Row]:
         """Services with a referral program, best first — the ones you can
         actually earn from. Ordered by score desc."""

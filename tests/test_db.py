@@ -127,6 +127,17 @@ def test_delete_services(db):
     assert db.delete_services("unreachable") == 0
 
 
+def test_source_report(db):
+    db.log_source("hackernews", 10, 3)
+    db.log_source("hackernews", 8, 2)
+    db.log_source("reddit", 20, 7)
+    rows = {r["source"]: r for r in db.source_report()}
+    assert rows["hackernews"]["runs"] == 2
+    assert rows["hackernews"]["candidates"] == 18
+    assert rows["hackernews"]["new_services"] == 5
+    assert db.source_report()[0]["source"] == "reddit"  # ordered by new desc
+
+
 def test_monetizable(db):
     a, _ = db.upsert_candidate(Candidate(url="https://earn.ai", source_platform="hn"))
     db.update_service(a, has_referral=1, score=80, referral_url="https://earn.ai/aff")
