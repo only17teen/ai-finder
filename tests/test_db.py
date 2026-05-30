@@ -119,6 +119,17 @@ def test_delete_services(db):
     assert db.delete_services("unreachable") == 0
 
 
+def test_get_history(db):
+    sid, _ = db.upsert_candidate(Candidate(url="https://x.ai", source_platform="hn"))
+    db.record_change(sid, "has_referral", "0", "1")
+    db.record_change(sid, "referral_commission", "", "30%")
+    rows = db.get_history("x.ai")
+    assert len(rows) == 2
+    assert rows[0]["field"] == "has_referral"
+    assert rows[1]["new_value"] == "30%"
+    assert db.get_history("nope.ai") == []
+
+
 def test_stats(db):
     db.upsert_candidate(Candidate(url="https://a.com", source_platform="hn"))
     sid, _ = db.upsert_candidate(

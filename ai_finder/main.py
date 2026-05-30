@@ -184,6 +184,20 @@ def cmd_prune(db: DB, status: str) -> None:
     print(f"Pruned {n} services with status '{status}'")
 
 
+def cmd_history(db: DB, domain: str) -> None:
+    from datetime import datetime, timezone
+
+    from .db import domain_of
+    rows = db.get_history(domain_of(domain))
+    if not rows:
+        print(f"No recorded changes for {domain}.")
+        return
+    for r in rows:
+        ts = datetime.fromtimestamp(r["changed_at"], timezone.utc).strftime(
+            "%Y-%m-%d %H:%M")
+        print(f"  {ts}  {r['field']}: {r['old_value']} -> {r['new_value']}")
+
+
 async def cmd_recheck(db: DB, max_age_days: float, only_verified: bool) -> None:
     report = await tracker.recheck_all(
         db, only_verified=only_verified, max_age_days=max_age_days)
@@ -248,6 +262,8 @@ def main(argv: list[str] | None = None) -> int:
     p_recheck.add_argument("--max-age-days", type=float, default=7.0)
     p_recheck.add_argument("--all", action="store_true",
                            help="recheck all services, not just verified/notified")
+    p_hist = sub.add_parser("history")
+    p_hist.add_argument("--domain", required=True)
     args = ap.parse_args(argv)
 
     if args.verbose:
@@ -284,6 +300,8 @@ def main(argv: list[str] | None = None) -> int:
             elif args.cmd == "recheck":
                 asyncio.run(cmd_recheck(db, args.max_age_days,
                                         only_verified=not args.all))
+            elif args.cmd == "history":
+                cmd_history(db, args.domain)
         finally:
             db.close()
         return 0

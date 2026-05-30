@@ -243,6 +243,14 @@ class DB:
     def all_services(self) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM services").fetchall()
 
+    def get_history(self, domain: str) -> list[sqlite3.Row]:
+        """Return change history for a domain, oldest first."""
+        return self.conn.execute(
+            "SELECT h.changed_at, h.field, h.old_value, h.new_value "
+            "FROM service_history h JOIN services s ON s.id = h.service_id "
+            "WHERE s.domain = ? ORDER BY h.changed_at ASC", (domain,),
+        ).fetchall()
+
     def delete_services(self, status: str) -> int:
         """Delete services with the given status (+ their tags/history).
         Returns the number of services removed."""
