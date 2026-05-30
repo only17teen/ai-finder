@@ -108,10 +108,73 @@ def analyze_html(html: str, base_url: str) -> dict:
 
 async def verify(url: str) -> dict:
     """Render `url` and analyze it. Returns findings (empty dict on failure)."""
-    html = await render(url if "://" in url else f"https://{url}")
+async def verify(url: str) -> dict:
+    """Render `url` and analyze it. Returns findings (empty dict on failure)."""
+    base = url if "://" in url else f"https://{url}"
+    html = await render(base)
     if not html:
         return {}
-    return analyze_html(html, url if "://" in url else f"https://{url}")
+    findings = analyze_html(html, base)
+    return await _probe_missing(base, findings)
+
+
+# Known paths to probe when the homepage doesn't surface a capability.
+# Cheap httpx GETs (no browser); first that yields the signal wins.
+_PROBE_PATHS = {
+    "api": ["/docs", "/api", "/api-docs", "/developers", "/developer",
+            "/reference", "/open", "/openapi"],
+    "referral": ["/affiliate", "/affiliates", "/referral", "/partners",
+                 "/partner", "/fenxiao", "/tuiguang", "/hehuoren"],
+    "pricing": ["/pricing", "/plans", "/price", "/huiyuan", "/vip"],
+}
+
+
+def merge_findings(base: dict, probed: dict) -> dict:
+    """Pure: fill missing capabilities in `base` from a probed page result."""
+    out = dict(base)
+    if not out.get("has_api") and probed.get("has_api"):
+        out["has_api"] = True
+        out["api_docs_url"] = probed.get("api_docs_url") or probed["__url__"]
+    if not out.get("has_referral") and probed.get("has_referral"):
+        out["has_referral"] = True
+        out["referral_url"] = probed.get("referral_url") or probed["__url__"]
+        if not out.get("referral_commission"):
+            out["referral_commission"] = probed.get("referral_commission", "")
+    if not out.get("pricing_info") and probed.get("pricing_info"):
+        out["pricing_info"] = "found"
+        out["pricing_model"] = probed.get("pricing_model") or probed["__url__"]
+    return out
+
+
+async def _probe_missing(base_url: str, findings: dict) -> dict:
+    """Probe known paths for capabilities the homepage didn't reveal."""
+    import httpx
+    from urllib.parse import urljoin
+    needed = [cap for cap, key in (("api", "has_api"), ("referral", "has_referral"),
+                                   ("pricing", "pricing_info"))
+              if not findings.get(key)]
+    if not needed:
+        return findings
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        headers={"User-Agent": "Mozilla/5.0 (ai-finder)"},
+    ) as client:
+        for cap in needed:
+            for path in _PROBE_PATHS[cap]:
+                if findings.get({"api": "has_api", "referral": "has_referral",
+                                 "pricing": "pricing_info"}[cap]):
+                    break
+                target = urljoin(base_url, path)
+                try:
+                    r = await client.get(target, timeout=8)
+                    if r.status_code != 200 or not r.text:
+                        continue
+                except Exception:
+                    continue
+                probed = analyze_html(r.text, target)
+                probed["__url__"] = target
+                findings = merge_findings(findings, probed)
+    return findings
 
 
 def _persist_fields(row, findings: dict) -> dict:

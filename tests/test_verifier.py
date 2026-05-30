@@ -139,3 +139,30 @@ def test_verify_services_batch(tmp_path, monkeypatch):
     assert db.get(good)["has_api"] == 1
     assert db.get(dead)["status"] == "unreachable"
     db.close()
+
+
+def test_merge_findings_fills_missing():
+    from ai_finder.verifier import merge_findings
+    base = {"has_api": False, "api_docs_url": "", "has_referral": True,
+            "referral_url": "https://x.ai/aff", "referral_commission": "20%",
+            "pricing_info": "", "pricing_model": ""}
+    probed = {"has_api": True, "api_docs_url": "https://x.ai/docs",
+              "has_referral": False, "pricing_info": "found",
+              "pricing_model": "", "__url__": "https://x.ai/docs"}
+    out = merge_findings(base, probed)
+    assert out["has_api"] and out["api_docs_url"] == "https://x.ai/docs"
+    assert out["referral_url"] == "https://x.ai/aff"   # preserved
+    assert out["pricing_info"] == "found"
+    assert out["pricing_model"] == "https://x.ai/docs"  # from __url__
+
+
+def test_merge_findings_no_overwrite_when_present():
+    from ai_finder.verifier import merge_findings
+    base = {"has_api": True, "api_docs_url": "https://x.ai/api",
+            "has_referral": True, "referral_url": "https://x.ai/aff",
+            "referral_commission": "30%", "pricing_info": "found",
+            "pricing_model": "https://x.ai/pricing"}
+    out = merge_findings(base, {"has_api": True,
+                                "api_docs_url": "https://other/docs",
+                                "__url__": "https://other/docs"})
+    assert out["api_docs_url"] == "https://x.ai/api"   # unchanged
