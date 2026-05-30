@@ -79,6 +79,32 @@ async def test_fetch_retries_then_succeeds(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fetch_all_aligns_and_handles_failures(monkeypatch):
+    monkeypatch.setattr(net, "backoff_delay", lambda *a, **k: 0.0)
+
+    def handler(request):
+        if "bad" in str(request.url):
+            return httpx.Response(500)
+        return httpx.Response(200, text=f"ok:{request.url.host}")
+
+    transport = httpx.MockTransport(handler)
+    OrigClient = httpx.AsyncClient
+
+    class FakeClient(OrigClient):
+        def __init__(self, *a, **k):
+            k.pop("transport", None)
+            super().__init__(transport=transport, **k)
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+    urls = ["https://a.ai", "https://bad.ai", "https://c.ai"]
+    res = await net.fetch_all(urls, per_domain_delay=0, max_retries=0)
+    assert len(res) == 3
+    assert res[0].text == "ok:a.ai"
+    assert res[1] is None              # failed -> None, aligned
+    assert res[2].text == "ok:c.ai"
+
+
+@pytest.mark.asyncio
 async def test_fetch_gives_up_returns_none(monkeypatch):
     monkeypatch.setattr(net, "backoff_delay", lambda *a, **k: 0.0)
 

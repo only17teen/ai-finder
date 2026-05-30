@@ -84,6 +84,18 @@ async def fetch(client: httpx.AsyncClient, url: str, *,
     return None
 
 
+async def fetch_all(urls, per_domain_delay: float = 1.0,
+                    max_retries: int = 3, user_agent: str | None = None):
+    """Fetch many URLs concurrently in one client. Returns responses aligned
+    to `urls` (None where the fetch failed). Shared by HTTP collectors."""
+    headers = {"User-Agent": user_agent or random_ua()}
+    limiter = RateLimiter(per_domain_delay=per_domain_delay)
+    async with httpx.AsyncClient(follow_redirects=True, headers=headers) as client:
+        return await asyncio.gather(
+            *[fetch(client, u, limiter=limiter, max_retries=max_retries)
+              for u in urls])
+
+
 def setup_logging(verbose: bool = False, logfile: str = "ai_finder.log") -> None:
     """Configure structured logging to file + console."""
     handlers: list[logging.Handler] = [logging.FileHandler(logfile)]

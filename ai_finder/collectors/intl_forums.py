@@ -52,17 +52,9 @@ def extract_candidates(html: str, source_url: str) -> list[Candidate]:
 
 
 async def fetch_candidates() -> list[Candidate]:
-    import httpx
-
-    from ..net import RateLimiter, fetch
-    limiter = RateLimiter(per_domain_delay=1.0)
+    from ..net import fetch_all
     out: list[Candidate] = []
-    async with httpx.AsyncClient(
-        follow_redirects=True,
-        headers={"User-Agent": "Mozilla/5.0 (ai-finder)"},
-    ) as client:
-        responses = await asyncio.gather(
-            *[fetch(client, u, limiter=limiter) for u in SOURCES])
+    responses = await fetch_all(SOURCES)
     for url, r in zip(SOURCES, responses):
         if r:
             out.extend(extract_candidates(r.text, url))
