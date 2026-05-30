@@ -94,13 +94,20 @@ async def _collect(db: DB, cfg: dict, only: str | None) -> int:
     return total
 
 
-async def _verify_pending(db: DB, concurrency: int = 6) -> int:
-    """Verify all pending services reusing one browser (fast path)."""
-    pending = db.by_status("pending")
-    if not pending:
+async def _verify_pending(db: DB, concurrency: int = 6,
+                          retry_cooldown_h: float = 24.0) -> int:
+    """Verify pending services + retry unreachable ones past the cooldown.
+
+    Transient failures (timeouts, blips) shouldn't strand a service forever, so
+    `unreachable` entries older than `retry_cooldown_h` hours get another shot.
+    """
+    due = list(db.by_status("pending"))
+    if retry_cooldown_h > 0:
+        due += db.stale_unreachable(retry_cooldown_h * 3600)
+    if not due:
         return 0
-    return await verifier.verify_services_batch(
-        db, [r["id"] for r in pending], concurrency=concurrency)
+    ids = [r["id"] for r in due]
+    return await verifier.verify_services_batch(db, ids, concurrency=concurrency)
 
 
 async def cmd_run(db: DB, cfg: dict, only: str | None) -> None:

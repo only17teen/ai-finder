@@ -127,6 +127,19 @@ def test_delete_services(db):
     assert db.delete_services("unreachable") == 0
 
 
+def test_stale_unreachable(db):
+    import time
+    now = time.time()
+    old, _ = db.upsert_candidate(Candidate(url="https://old.ai", source_platform="hn"))
+    db.update_service(old, status="unreachable", last_checked=now - 100000)
+    fresh, _ = db.upsert_candidate(Candidate(url="https://fresh.ai", source_platform="hn"))
+    db.update_service(fresh, status="unreachable", last_checked=now - 10)
+    ok, _ = db.upsert_candidate(Candidate(url="https://ok.ai", source_platform="hn"))
+    db.update_service(ok, status="verified", last_checked=now - 100000)
+    due = db.stale_unreachable(24 * 3600, now=now)
+    assert {r["domain"] for r in due} == {"old.ai"}
+
+
 def test_source_report(db):
     db.log_source("hackernews", 10, 3)
     db.log_source("hackernews", 8, 2)

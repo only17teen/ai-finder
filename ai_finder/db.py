@@ -259,6 +259,17 @@ class DB:
             "SELECT * FROM services WHERE status=?", (status,)
         ).fetchall()
 
+    def stale_unreachable(self, cooldown_seconds: float,
+                          now: float | None = None) -> list[sqlite3.Row]:
+        """Unreachable services last checked longer ago than the cooldown —
+        candidates for a retry (transient failures shouldn't be permanent)."""
+        import time as _t
+        cutoff = (now if now is not None else _t.time()) - cooldown_seconds
+        return self.conn.execute(
+            "SELECT * FROM services WHERE status='unreachable' "
+            "AND (last_checked IS NULL OR last_checked < ?)", (cutoff,)
+        ).fetchall()
+
     def top(self, limit: int = 20) -> list[sqlite3.Row]:
         return self.conn.execute(
             "SELECT * FROM services ORDER BY score DESC LIMIT ?", (limit,)
