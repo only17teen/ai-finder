@@ -17,6 +17,14 @@ def test_domain_of_normalizes():
     assert domain_of("http://sub.example.com") == "sub.example.com"
 
 
+def test_domain_of_multilevel_tld():
+    assert domain_of("https://foo.com.cn") == "foo.com.cn"
+    assert domain_of("https://www.foo.co.uk") == "foo.co.uk"
+    assert domain_of("https://app.bar.co.kr") == "bar.co.kr"
+    assert domain_of("https://api.baz.com.cn/v1") == "baz.com.cn"
+    assert domain_of("https://example.co.uk") == "example.co.uk"
+
+
 def test_domain_of_strips_common_subdomains():
     # near-duplicates collapse to the registrable domain
     assert domain_of("https://app.klingai.com") == "klingai.com"

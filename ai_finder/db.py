@@ -67,20 +67,34 @@ _COMMON_SUBDOMAINS = {
     "portal", "platform", "try", "start", "home", "web",
 }
 
+# Multi-level public suffixes: the registrable domain has one more label.
+_MULTI_TLDS = {
+    "co.uk", "org.uk", "ac.uk", "gov.uk", "com.cn", "net.cn", "org.cn",
+    "com.br", "com.au", "com.tr", "co.jp", "or.jp", "ne.jp", "co.kr",
+    "or.kr", "com.tw", "com.hk", "com.sg", "co.in", "com.mx", "co.za",
+}
+
+
+def _min_labels(labels: list[str]) -> int:
+    """Smallest label count that still includes the registrable name
+    (3 for a multi-level public suffix like co.uk, else 2)."""
+    return 3 if ".".join(labels[-2:]) in _MULTI_TLDS else 2
+
 
 def domain_of(url: str) -> str:
     """Normalize a URL to its registrable host: lowercased, common
     service subdomains stripped (www/app/docs/api/...), so near-duplicates
     like ``app.klingai.com`` and ``klingai.com`` collapse to one key.
 
-    Meaningful subdomains (e.g. ``jimeng.jianying.com``) are preserved.
+    Multi-level TLDs are respected (``app.co.uk`` stays ``app.co.uk``, not
+    ``co.uk``). Meaningful subdomains (e.g. ``jimeng.jianying.com``) are kept.
     """
     if "://" not in url:
         url = "http://" + url
     host = (urlparse(url).hostname or "").lower()
     labels = host.split(".")
-    # strip known prefixes while keeping at least 2 labels (registrable)
-    while len(labels) > 2 and labels[0] in _COMMON_SUBDOMAINS:
+    min_keep = _min_labels(labels)
+    while len(labels) > min_keep and labels[0] in _COMMON_SUBDOMAINS:
         labels.pop(0)
     return ".".join(labels)
 
