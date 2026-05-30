@@ -7,12 +7,23 @@ service_history. `diff_fields` is pure and unit-tested.
 from __future__ import annotations
 
 import asyncio
+import time
 
 from .db import DB
 from .verifier import verify
 
 # Fields worth tracking for change over time.
 TRACKED = ("has_api", "has_referral", "referral_commission", "status")
+
+DAY = 86400.0
+
+
+def needs_recheck(last_checked, max_age_days: float, now: float | None = None) -> bool:
+    """Pure: True if a service is due for re-check (never checked or stale)."""
+    if not last_checked:
+        return True
+    now = time.time() if now is None else now
+    return (now - float(last_checked)) >= max_age_days * DAY
 
 
 def diff_fields(old: dict, new: dict) -> list[tuple[str, str, str]]:
@@ -27,7 +38,6 @@ def diff_fields(old: dict, new: dict) -> list[tuple[str, str, str]]:
 
 async def recheck_service(db: DB, service_id: int) -> list[tuple]:
     """Re-verify one service, record + return changes."""
-    import time
     row = db.get(service_id)
     if not row:
         return []
@@ -49,12 +59,19 @@ async def recheck_service(db: DB, service_id: int) -> list[tuple]:
     return changes
 
 
-async def recheck_all(db: DB, only_verified: bool = True) -> dict:
-    """Re-verify stored services. Returns {domain: changes} for changed ones."""
+async def recheck_all(db: DB, only_verified: bool = True,
+                      max_age_days: float = 7.0) -> dict:
+    """Re-verify stored services older than `max_age_days`.
+
+    Returns {domain: changes} for services whose tracked fields changed.
+    Recently-checked services are skipped to save time/bandwidth.
+    """
     rows = (db.by_status("verified") + db.by_status("notified")) \
         if only_verified else db.all_services()
     report = {}
     for row in rows:
+        if not needs_recheck(row["last_checked"], max_age_days):
+            continue
         changes = await recheck_service(db, row["id"])
         if changes:
             report[row["domain"]] = changes

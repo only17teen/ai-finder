@@ -2,7 +2,22 @@
 import asyncio
 
 from ai_finder.db import DB, Candidate
-from ai_finder.tracker import diff_fields, recheck_all, recheck_service
+from ai_finder.tracker import (
+    diff_fields,
+    needs_recheck,
+    recheck_all,
+    recheck_service,
+)
+
+
+def test_needs_recheck():
+    import time
+    now = time.time()
+    assert needs_recheck(0, 7) is True
+    assert needs_recheck(None, 7) is True
+    assert needs_recheck(now, 7, now=now) is False
+    assert needs_recheck(now - 8 * 86400, 7, now=now) is True
+    assert needs_recheck(now - 3 * 86400, 7, now=now) is False
 
 
 def test_diff_fields_detects_changes():
@@ -55,4 +70,24 @@ def test_recheck_detects_dead_site(tmp_path, monkeypatch):
     report = asyncio.run(recheck_all(db))
     assert "gone.ai" in report
     assert db.get(sid)["status"] == "unreachable"
+    db.close()
+
+
+def test_recheck_all_skips_fresh(tmp_path, monkeypatch):
+    import time
+    db = DB(tmp_path / "t.db")
+    sid, _ = db.upsert_candidate(Candidate(url="https://fresh.ai", source_platform="hn"))
+    db.update_service(sid, status="verified", has_api=1, last_checked=time.time())
+
+    called = {"n": 0}
+
+    async def fake_verify(url):
+        called["n"] += 1
+        return {"has_api": False, "has_referral": False,
+                "referral_commission": ""}
+    monkeypatch.setattr("ai_finder.tracker.verify", fake_verify)
+
+    report = asyncio.run(recheck_all(db, max_age_days=7))
+    assert report == {}            # nothing rechecked
+    assert called["n"] == 0        # verify never called for fresh service
     db.close()
