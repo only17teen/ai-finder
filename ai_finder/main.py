@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import logging
 import sys
 
 from . import config as _config
@@ -23,44 +24,52 @@ from .collectors import (hackernews, linux_forums, apify_sources,
                          reddit_rss)
 from . import verifier, scorer, notifier
 
+log = logging.getLogger("ai_finder")
+
 EXPORT_COLS = ["domain", "name", "category", "score", "has_api",
                "api_docs_url", "has_referral", "referral_url",
                "referral_commission", "pricing_model", "source_url",
                "platforms", "description"]
 
 
-async def _collect(db: DB, cfg: dict, only: str | None) -> int:
-    src = cfg["sources"]
+def _source_registry(db: DB, cfg: dict) -> dict:
+    """Map source name -> zero-arg coroutine factory for enabled sources."""
     lim = cfg["limits"]
-    tasks = []
-    if (only in (None, "hackernews")) and src.get("hackernews"):
-        tasks.append(hackernews.collect(db, lim.get("hackernews", 100)))
-    if (only in (None, "linux_forums")) and src.get("linux_forums"):
-        tasks.append(linux_forums.collect(db))
-    if (only in (None, "apify")) and src.get("apify"):
-        tasks.append(apify_sources.collect(db, cfg["apify"]["token"]))
-    if (only in (None, "ai_directories")) and src.get("ai_directories"):
-        tasks.append(ai_directories.collect(db))
-    if (only in (None, "github_trending")) and src.get("github_trending"):
-        tasks.append(github_trending.collect(db, lim.get("github_trending", 25)))
-    if (only in (None, "hidden_gems")) and src.get("hidden_gems"):
-        tasks.append(hidden_gems.collect(db))
-    if (only in (None, "foss")) and src.get("foss"):
-        tasks.append(foss_sources.collect(db))
-    if (only in (None, "forums")) and src.get("forums"):
-        tasks.append(forums.collect(db))
-    if (only in (None, "asian_dev")) and src.get("asian_dev"):
-        tasks.append(asian_dev.collect(db))
-    if (only in (None, "launch")) and src.get("launch"):
-        tasks.append(launch.collect(db))
-    if (only in (None, "reddit")) and src.get("reddit"):
-        tasks.append(reddit_rss.collect(db))
-    if (only in (None, "telegram")) and src.get("telegram"):
-        tg = cfg["telegram"]
-        tasks.append(telegram_channels.collect(
-            db, tg["api_id"], tg["api_hash"], tg["channels"]))
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    return sum(r for r in results if isinstance(r, int))
+    tg = cfg["telegram"]
+    return {
+        "hackernews": lambda: hackernews.collect(db, lim.get("hackernews", 100)),
+        "linux_forums": lambda: linux_forums.collect(db),
+        "apify": lambda: apify_sources.collect(db, cfg["apify"]["token"]),
+        "ai_directories": lambda: ai_directories.collect(db),
+        "github_trending": lambda: github_trending.collect(
+            db, lim.get("github_trending", 25)),
+        "hidden_gems": lambda: hidden_gems.collect(db),
+        "foss": lambda: foss_sources.collect(db),
+        "forums": lambda: forums.collect(db),
+        "asian_dev": lambda: asian_dev.collect(db),
+        "launch": lambda: launch.collect(db),
+        "reddit": lambda: reddit_rss.collect(db),
+        "telegram": lambda: telegram_channels.collect(
+            db, tg["api_id"], tg["api_hash"], tg["channels"]),
+    }
+
+
+async def _collect(db: DB, cfg: dict, only: str | None) -> int:
+    """Run enabled collectors concurrently. Logs per-source failures."""
+    src = cfg["sources"]
+    registry = _source_registry(db, cfg)
+    names = [n for n, factory in registry.items()
+             if src.get(n) and only in (None, n)]
+    results = await asyncio.gather(
+        *[registry[n]() for n in names], return_exceptions=True)
+    total = 0
+    for name, res in zip(names, results):
+        if isinstance(res, Exception):
+            log.error("collector %s failed: %s", name, res)
+        else:
+            total += res
+            log.info("collector %s: %d new", name, res)
+    return total
 
 
 async def _verify_pending(db: DB, concurrency: int = 6) -> int:

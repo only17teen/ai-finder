@@ -65,3 +65,26 @@ def test_cli_top_runs(tmp_path, capsys, monkeypatch):
     rc = cli.main(["--config", str(cfile), "top", "--limit", "5"])
     assert rc == 0
     assert "a.ai" in capsys.readouterr().out
+
+
+def test_collect_isolates_source_failure(tmp_path, monkeypatch):
+    """A failing collector must not abort the others; totals still sum."""
+    import asyncio
+    db = DB(tmp_path / "t.db")
+    cfg = cfgmod.load(tmp_path / "none.toml")
+
+    async def ok(*a, **k):
+        return 3
+
+    async def boom(*a, **k):
+        raise RuntimeError("source down")
+
+    monkeypatch.setattr(cli.hackernews, "collect", ok)
+    monkeypatch.setattr(cli.reddit_rss, "collect", boom)
+    # disable everything except the two we control
+    for s in cfg["sources"]:
+        cfg["sources"][s] = s in ("hackernews", "reddit")
+
+    total = asyncio.run(cli._collect(db, cfg, only=None))
+    assert total == 3  # ok counted, boom logged + skipped
+    db.close()
