@@ -88,3 +88,19 @@ def test_collect_isolates_source_failure(tmp_path, monkeypatch):
     total = asyncio.run(cli._collect(db, cfg, only=None))
     assert total == 3  # ok counted, boom logged + skipped
     db.close()
+
+
+def test_cli_sources_lists(tmp_path, capsys):
+    cfile = tmp_path / "c.toml"
+    cfile.write_text('[sources]\nhackernews = true\nreddit = false\n')
+    rc = cli.main(["--config", str(cfile), "sources"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "[on ] hackernews" in out
+    assert "[off] reddit" in out
+
+
+def test_cli_run_rejects_invalid_source():
+    import pytest
+    with pytest.raises(SystemExit):
+        cli.main(["run", "--source", "nonsense"])

@@ -26,6 +26,12 @@ from . import verifier, scorer, notifier
 
 log = logging.getLogger("ai_finder")
 
+# Canonical collector names (also the valid values for `run --source`).
+SOURCE_NAMES = [
+    "hackernews", "linux_forums", "apify", "ai_directories", "github_trending",
+    "hidden_gems", "foss", "forums", "asian_dev", "launch", "reddit", "telegram",
+]
+
 EXPORT_COLS = ["domain", "name", "category", "score", "has_api",
                "api_docs_url", "has_referral", "referral_url",
                "referral_commission", "pricing_model", "source_url",
@@ -126,16 +132,26 @@ def cmd_status(db: DB) -> None:
           f"with_api={s['with_api']} with_referral={s['with_referral']}")
 
 
+def cmd_sources(cfg: dict) -> None:
+    src = cfg["sources"]
+    for name in SOURCE_NAMES:
+        state = "on " if src.get(name) else "off"
+        print(f"  [{state}] {name}")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="ai-finder")
     ap.add_argument("--config", default=str(_config.DEFAULT_PATH))
     ap.add_argument("--verbose", action="store_true")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p_run = sub.add_parser("run"); p_run.add_argument("--source", default=None)
+    p_run = sub.add_parser("run")
+    p_run.add_argument("--source", default=None, choices=SOURCE_NAMES,
+                       metavar="NAME", help="one of: " + ", ".join(SOURCE_NAMES))
     p_ver = sub.add_parser("verify"); p_ver.add_argument("--url", required=True)
     p_exp = sub.add_parser("export"); p_exp.add_argument("--out", default="ai_services.csv")
     p_top = sub.add_parser("top"); p_top.add_argument("--limit", type=int, default=20)
     sub.add_parser("status")
+    sub.add_parser("sources")
     args = ap.parse_args(argv)
 
     if args.verbose:
@@ -149,6 +165,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.cmd == "verify":
             asyncio.run(cmd_verify(args.url))
+            return 0
+        if args.cmd == "sources":
+            cmd_sources(cfg)
             return 0
         db = DB(cfg["db_path"])
         try:
