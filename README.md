@@ -1,12 +1,14 @@
 # AI Finder
 
+[![tests](https://github.com/only17teen/ai-finder/actions/workflows/tests.yml/badge.svg)](https://github.com/only17teen/ai-finder/actions/workflows/tests.yml)
+
 Discover **niche AI services with APIs and referral programs** (like geekai.co) by
 crawling sources the mainstream crowd ignores — Chinese/Japanese/Korean dev
 communities, European directories, FOSS/self-hosted hubs, and ultra-early launch
 platforms. Verifies each site for an API + affiliate program, scores it, stores it
 in SQLite, and can notify you on Telegram.
 
-## Sources (12 collectors)
+## Sources (13 collectors)
 
 | Collector | Coverage |
 |-----------|----------|
@@ -21,6 +23,7 @@ in SQLite, and can notify you on Telegram.
 | `asian_dev` | 🇨🇳 V2EX · 🇯🇵 Qiita, Zenn |
 | `launch` | MicroLaunch, TinyLaunch (days-old indie launches) |
 | `reddit_rss` | LocalLLaMA, selfhosted, StableDiffusion, ollama, comfyui, … |
+| `intl_forums` | 🇰🇷 Korean GeekNews (news.hada.io) |
 | `telegram_channels` | public AI channels (needs Telegram API creds) |
 
 ## Pipeline
@@ -74,7 +77,7 @@ from env vars and never committed:
 ## Tests
 
 ```bash
-python -m pytest        # 101 tests
+python -m pytest        # 109 tests
 ```
 
 Parsing/scoring logic is written as pure functions, unit-tested with fixtures (no
