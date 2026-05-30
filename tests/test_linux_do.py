@@ -49,3 +49,16 @@ def test_extract_topic_links_dedup():
     ]}}
     cands = extract_topic_links(topic, "t")
     assert [c.domain for c in cands].count("dup.ai") == 1
+
+
+def test_extract_topic_links_bare_domain():
+    # services shared as plain text, not <a> links
+    topic = {"post_stream": {"posts": [
+        {"cooked": "<p>推荐这个免费站 chyqd.com 很好用</p>"},
+        {"cooked": "<p>还有 my-llm.dev 也不错，网盘 pan.baidu.com 跳过</p>"},
+    ]}}
+    cands = extract_topic_links(topic, "GPT 公益站分享")
+    domains = {c.domain for c in cands}
+    assert "chyqd.com" in domains
+    assert "my-llm.dev" in domains
+    assert "pan.baidu.com" not in domains  # netdisk filtered

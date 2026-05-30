@@ -24,9 +24,22 @@ from ..keywords import is_ai_related
 
 PLATFORM = "linux_do"
 BASE = "https://linux.do"
-LATEST = f"{BASE}/latest.json"
+# Feeds richest in shared AI services: latest + resource (资源荟萃) +
+# welfare (福利羊毛, deals/invites) + domestic (国产替代, CN alternatives).
+FEEDS = [
+    f"{BASE}/c/resource/14.json",
+    f"{BASE}/c/welfare/36.json",
+    f"{BASE}/c/domestic/98.json",
+    f"{BASE}/latest.json",
+]
 
-_EXTRA_NOISE = {"linux.do", "meta.discourse.org"}
+# linux.do itself + Chinese netdisks/shorteners are not the AI service.
+_EXTRA_NOISE = {
+    "linux.do", "meta.discourse.org",
+    "pan.baidu.com", "pan.quark.cn", "aliyundrive.com", "alipan.com",
+    "cloud.189.cn", "lanzou.com", "123pan.com", "weiyun.com",
+    "t.me", "telegra.ph", "docs.qq.com",
+}
 _ASSET_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".pdf")
 
 
@@ -50,48 +63,79 @@ def ai_topic_ids(latest_json: dict) -> list[tuple[int, str]]:
             if t.get("id") and is_ai_related(t.get("title", ""))]
 
 
+_BARE_DOMAIN_RE = re.compile(
+    r"(?<![@\w.])((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+    r"(?:ai|io|app|dev|co|com|net|cn|org|me|sh|gg|so|xyz|tech|tools))"
+    r"(?![\w.])", re.I)
+
+
+def _ok_domain(dom: str, seen: set) -> bool:
+    if not dom or dom in seen or is_noise_domain(dom):
+        return False
+    return not any(dom == d or dom.endswith("." + d) for d in _EXTRA_NOISE)
+
+
 def extract_topic_links(topic_json: dict, title: str) -> list[Candidate]:
-    """Pure: external AI-service links from a topic's posts (cooked HTML)."""
+    """Pure: external AI-service links from a topic's posts.
+
+    Picks up both <a> hrefs and bare-text domains (services are often shared
+    as plain text on linux.do), filtering noise/netdisks/assets.
+    """
     posts = topic_json.get("post_stream", {}).get("posts", [])
     out, seen = [], set()
     for p in posts:
-        soup = BeautifulSoup(p.get("cooked", ""), "html.parser")
+        cooked = p.get("cooked", "")
+        soup = BeautifulSoup(cooked, "html.parser")
+        # 1) anchored links
         for a in soup.find_all("a", href=True):
             href = a["href"].strip()
             if not href.startswith("http") or href.lower().endswith(_ASSET_EXT):
                 continue
             dom = domain_of(href)
-            if not dom or dom in seen or is_noise_domain(dom):
-                continue
-            if any(dom == d or dom.endswith("." + d) for d in _EXTRA_NOISE):
+            if not _ok_domain(dom, seen):
                 continue
             seen.add(dom)
             out.append(Candidate(url=href, name=title[:80] or dom,
-                                 description=title[:160],
-                                 source_platform=PLATFORM))
+                                 description=title[:160], source_platform=PLATFORM))
+        # 2) bare-text domains (e.g. "推荐 chyqd.com")
+        for m in _BARE_DOMAIN_RE.finditer(soup.get_text(" ")):
+            dom = domain_of(m.group(1))
+            if not _ok_domain(dom, seen):
+                continue
+            seen.add(dom)
+            out.append(Candidate(url=f"https://{dom}", name=title[:80] or dom,
+                                 description=title[:160], source_platform=PLATFORM))
     return out
 
 
-async def fetch_candidates(max_topics: int = 12) -> list[Candidate]:
-    from ..browser import render
+async def _render_json(render, url: str, attempts: int = 3) -> dict:
+    """Render a Discourse .json URL, retrying past Cloudflare challenges."""
+    for _ in range(attempts):
+        data = parse_discourse_json(await render(url))
+        if data:
+            return data
+    return {}
+
+
+async def fetch_candidates(max_topics: int = 15) -> list[Candidate]:
+    from ..browser import render_stealth as render
     from ._base import dedup_by_domain
-    # Cloudflare may challenge the first render; retry a couple of times.
-    latest = {}
-    for _ in range(3):
-        latest = parse_discourse_json(await render(LATEST))
-        if latest.get("topic_list"):
-            break
-    topics = ai_topic_ids(latest)[:max_topics]
-    pages = await asyncio.gather(
-        *[render(f"{BASE}/t/{tid}.json") for tid, _ in topics])
+    # Gather AI topic ids across feeds (dedup by id, keep first title).
+    seen_ids: dict[int, str] = {}
+    for feed in FEEDS:
+        data = await _render_json(render, feed)
+        for tid, title in ai_topic_ids(data):
+            seen_ids.setdefault(tid, title)
     out: list[Candidate] = []
-    for (tid, title), html in zip(topics, pages):
-        if html:
-            out.extend(extract_topic_links(parse_discourse_json(html), title))
+    # Sequential: camoufox is heavy; concurrent instances are unreliable.
+    for tid, title in list(seen_ids.items())[:max_topics]:
+        tj = await _render_json(render, f"{BASE}/t/{tid}.json")
+        if tj:
+            out.extend(extract_topic_links(tj, title))
     return dedup_by_domain(out)
 
 
-async def collect(db: DB, max_topics: int = 12) -> int:
+async def collect(db: DB, max_topics: int = 15) -> int:
     from . import store_candidates
     return store_candidates(db, PLATFORM, await fetch_candidates(max_topics))
 

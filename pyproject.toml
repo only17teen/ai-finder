@@ -15,6 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.5"]
+stealth = ["camoufox[geoip]>=0.4"]
 
 [project.scripts]
 ai-finder = "ai_finder.main:main"

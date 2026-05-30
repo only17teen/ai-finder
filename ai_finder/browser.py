@@ -78,3 +78,26 @@ async def render_many(urls: list[str], concurrency: int = 6,
         await _a.gather(*[_one(u) for u in urls])
         await browser.close()
     return results
+
+
+async def render_stealth(url: str, wait: str = "domcontentloaded",
+                         timeout: int = 35000) -> str:
+    """Render a URL with Camoufox (anti-detect Firefox) to defeat Cloudflare
+    and similar bot walls. Returns HTML, or '' on failure / if camoufox is
+    unavailable. Heavier than render(); use only for protected sites."""
+    try:
+        from camoufox.async_api import AsyncCamoufox
+    except ImportError:
+        return ""
+    try:
+        async with AsyncCamoufox(headless=True, humanize=True) as browser:
+            page = await browser.new_page()
+            try:
+                await page.goto(url, wait_until=wait, timeout=timeout)
+                # give Cloudflare's JS challenge a moment to resolve
+                await page.wait_for_timeout(2500)
+                return await page.content()
+            finally:
+                await page.close()
+    except Exception:
+        return ""
