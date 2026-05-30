@@ -255,3 +255,29 @@ def test_cmd_run_uses_verify_config(tmp_path, monkeypatch):
     asyncio.run(cli.cmd_run(db, cfg, only=None))
     assert captured == {"concurrency": 3, "cooldown": 12.0}
     db.close()
+
+
+def test_monetizable_referral_urls(tmp_path):
+    db = DB(tmp_path / "t.db")
+    a, _ = db.upsert_candidate(Candidate(url="https://a.ai", source_platform="hn"))
+    db.update_service(a, has_referral=1, score=90, referral_url="https://a.ai/aff")
+    b, _ = db.upsert_candidate(Candidate(url="https://b.ai", source_platform="hn"))
+    db.update_service(b, has_referral=1, score=50, referral_url="https://b.ai/aff")
+    c, _ = db.upsert_candidate(Candidate(url="https://c.ai", source_platform="hn"))
+    db.update_service(c, has_referral=1, score=70)  # no referral_url -> skipped
+    urls = cli.monetizable_referral_urls(db, limit=5)
+    assert urls == ["https://a.ai/aff", "https://b.ai/aff"]  # score order, no None
+    assert cli.monetizable_referral_urls(db, limit=1) == ["https://a.ai/aff"]
+    db.close()
+
+
+def test_cmd_open_calls_browser(tmp_path, monkeypatch, capsys):
+    db = DB(tmp_path / "t.db")
+    a, _ = db.upsert_candidate(Candidate(url="https://a.ai", source_platform="hn"))
+    db.update_service(a, has_referral=1, score=90, referral_url="https://a.ai/aff")
+    opened = []
+    import webbrowser
+    monkeypatch.setattr(webbrowser, "open", lambda u: opened.append(u))
+    cli.cmd_open(db, limit=5)
+    assert opened == ["https://a.ai/aff"]
+    db.close()

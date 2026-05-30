@@ -240,6 +240,32 @@ def cmd_report(db: DB, as_json: bool = False) -> None:
               f"{r['new_services'] or 0:>6}  {last}")
 
 
+def monetizable_referral_urls(db: DB, limit: int) -> list[str]:
+    """Pure-ish: referral URLs of top monetizable finds (dedup, capped)."""
+    urls = []
+    seen = set()
+    for r in db.monetizable(limit * 2):
+        u = r["referral_url"]
+        if u and u not in seen:
+            seen.add(u)
+            urls.append(u)
+        if len(urls) >= limit:
+            break
+    return urls
+
+
+def cmd_open(db: DB, limit: int) -> None:
+    """Open top monetizable referral URLs in the default browser."""
+    import webbrowser
+    urls = monetizable_referral_urls(db, limit)
+    if not urls:
+        print("No referral URLs to open (run + verify first).")
+        return
+    for u in urls:
+        print(f"opening {u}")
+        webbrowser.open(u)
+
+
 def cmd_links(db: DB, limit: int) -> None:
     """Print copy-friendly referral + API links for monetizable finds."""
     rows = db.monetizable(limit)
@@ -350,6 +376,8 @@ def main(argv: list[str] | None = None) -> int:
     p_digest.add_argument("--limit", type=int, default=10)
     p_links = sub.add_parser("links")
     p_links.add_argument("--limit", type=int, default=25)
+    p_open = sub.add_parser("open")
+    p_open.add_argument("--limit", type=int, default=5)
     p_report = sub.add_parser("report")
     p_report.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
@@ -395,6 +423,8 @@ def main(argv: list[str] | None = None) -> int:
                 asyncio.run(cmd_digest(db, cfg, args.limit))
             elif args.cmd == "links":
                 cmd_links(db, args.limit)
+            elif args.cmd == "open":
+                cmd_open(db, args.limit)
             elif args.cmd == "report":
                 cmd_report(db, as_json=args.json)
         finally:

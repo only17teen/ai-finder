@@ -65,6 +65,7 @@ python -m ai_finder.main history --domain geekai.co # change log
 python -m ai_finder.main prune                      # drop unreachable services
 python -m ai_finder.main digest --limit 10          # Telegram top-N digest
 python -m ai_finder.main links --limit 25           # copy-friendly referral+API URLs
+python -m ai_finder.main open --limit 5             # open top referral URLs in browser
 python -m ai_finder.main report                     # per-source collector stats
 ```
 
@@ -88,7 +89,7 @@ committed (real env vars take precedence over `.env`):
 ## Tests
 
 ```bash
-python -m pytest        # 143 tests
+python -m pytest        # 147 tests
 ```
 
 Parsing/scoring logic is written as pure functions, unit-tested with fixtures (no
