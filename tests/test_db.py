@@ -173,6 +173,19 @@ def test_get_history(db):
     assert db.get_history("nope.ai") == []
 
 
+def test_upsert_candidates_batch(db):
+    cands = [Candidate(url="https://a.ai", source_platform="x"),
+             Candidate(url="https://b.ai", source_platform="y"),
+             Candidate(url="https://github.com/x", source_platform="z"),  # noise
+             Candidate(url="https://a.ai/dup", source_platform="w")]      # dup
+    new = db.upsert_candidates(cands)
+    assert new == 2  # a.ai, b.ai (noise skipped, dup merged)
+    assert db.stats()["total"] == 2
+    row = db.conn.execute(
+        "SELECT platforms FROM services WHERE domain='a.ai'").fetchone()
+    assert "x" in row["platforms"] and "w" in row["platforms"]
+
+
 def test_stats(db):
     db.upsert_candidate(Candidate(url="https://a.com", source_platform="hn"))
     sid, _ = db.upsert_candidate(

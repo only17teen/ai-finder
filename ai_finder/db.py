@@ -103,43 +103,60 @@ class DB:
             self.conn.rollback()
             raise
 
-    def upsert_candidate(self, c: Candidate) -> tuple[int, bool]:
-        """Insert candidate or merge into existing (dedup by domain).
-
-        Returns (service_id, is_new).
-        """
+    def _upsert_one(self, conn, c: Candidate) -> tuple[int, bool]:
+        """Insert or merge a single candidate on an open connection (no commit).
+        Returns (service_id, is_new); (-1, False) if skipped as noise."""
         if not c.domain:
             raise ValueError(f"candidate has no domain: {c.url}")
         if is_noise_domain(c.domain):
             return -1, False  # skip generic/infra hosts
         now = time.time()
-        with self._tx() as conn:
-            row = conn.execute(
-                "SELECT id, platforms, upvotes FROM services WHERE domain=?",
-                (c.domain,),
-            ).fetchone()
-            if row is None:
-                cur = conn.execute(
-                    """INSERT INTO services
-                    (domain,name,description,source_url,source_platform,
-                     upvotes,platforms,discovered_at,status)
-                    VALUES (?,?,?,?,?,?,?,?,'pending')""",
-                    (c.domain, c.name, c.description, c.url, c.source_platform,
-                     c.upvotes, c.source_platform, now),
-                )
-                return cur.lastrowid, True
-            # merge: track platforms, keep max upvotes, fill missing fields
-            platforms = set(filter(None, (row["platforms"] or "").split(",")))
-            platforms.add(c.source_platform)
-            conn.execute(
-                """UPDATE services SET platforms=?, upvotes=MAX(upvotes,?),
-                   name=COALESCE(NULLIF(name,''),?),
-                   description=COALESCE(NULLIF(description,''),?)
-                   WHERE id=?""",
-                (",".join(sorted(platforms)), c.upvotes, c.name,
-                 c.description, row["id"]),
+        row = conn.execute(
+            "SELECT id, platforms, upvotes FROM services WHERE domain=?",
+            (c.domain,),
+        ).fetchone()
+        if row is None:
+            cur = conn.execute(
+                """INSERT INTO services
+                (domain,name,description,source_url,source_platform,
+                 upvotes,platforms,discovered_at,status)
+                VALUES (?,?,?,?,?,?,?,?,'pending')""",
+                (c.domain, c.name, c.description, c.url, c.source_platform,
+                 c.upvotes, c.source_platform, now),
             )
-            return row["id"], False
+            return cur.lastrowid, True
+        # merge: track platforms, keep max upvotes, fill missing fields
+        platforms = set(filter(None, (row["platforms"] or "").split(",")))
+        platforms.add(c.source_platform)
+        conn.execute(
+            """UPDATE services SET platforms=?, upvotes=MAX(upvotes,?),
+               name=COALESCE(NULLIF(name,''),?),
+               description=COALESCE(NULLIF(description,''),?)
+               WHERE id=?""",
+            (",".join(sorted(platforms)), c.upvotes, c.name,
+             c.description, row["id"]),
+        )
+        return row["id"], False
+
+    def upsert_candidate(self, c: Candidate) -> tuple[int, bool]:
+        """Insert candidate or merge into existing (dedup by domain).
+
+        Returns (service_id, is_new).
+        """
+        with self._tx() as conn:
+            return self._upsert_one(conn, c)
+
+    def upsert_candidates(self, cands) -> int:
+        """Insert/merge many candidates in ONE transaction. Returns new count.
+
+        Far fewer fsyncs than calling upsert_candidate() in a loop.
+        """
+        new = 0
+        with self._tx() as conn:
+            for c in cands:
+                if self._upsert_one(conn, c)[1]:
+                    new += 1
+        return new
 
     def update_service(self, service_id: int, **fields):
         if not fields:

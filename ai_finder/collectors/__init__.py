@@ -9,6 +9,6 @@ def store_candidates(db, platform: str, cands) -> int:
     lives in one place.
     """
     cands = list(cands)
-    new = sum(db.upsert_candidate(c)[1] for c in cands)
+    new = db.upsert_candidates(cands)
     db.log_source(platform, len(cands), new)
     return new
