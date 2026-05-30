@@ -60,12 +60,29 @@ CREATE INDEX IF NOT EXISTS idx_services_score ON services(score DESC);
 """
 
 
+# Subdomain labels that denote the same service (collapsed for dedup).
+_COMMON_SUBDOMAINS = {
+    "www", "app", "apps", "docs", "doc", "api", "dev", "developer",
+    "developers", "get", "go", "my", "beta", "dashboard", "console",
+    "portal", "platform", "try", "start", "home", "web",
+}
+
+
 def domain_of(url: str) -> str:
-    """Normalize a URL to its registrable host (lowercased, no www)."""
+    """Normalize a URL to its registrable host: lowercased, common
+    service subdomains stripped (www/app/docs/api/...), so near-duplicates
+    like ``app.klingai.com`` and ``klingai.com`` collapse to one key.
+
+    Meaningful subdomains (e.g. ``jimeng.jianying.com``) are preserved.
+    """
     if "://" not in url:
         url = "http://" + url
     host = (urlparse(url).hostname or "").lower()
-    return host[4:] if host.startswith("www.") else host
+    labels = host.split(".")
+    # strip known prefixes while keeping at least 2 labels (registrable)
+    while len(labels) > 2 and labels[0] in _COMMON_SUBDOMAINS:
+        labels.pop(0)
+    return ".".join(labels)
 
 
 # Generic/infra domains that are never the niche AI service we want to track.

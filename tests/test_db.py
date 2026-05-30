@@ -17,6 +17,30 @@ def test_domain_of_normalizes():
     assert domain_of("http://sub.example.com") == "sub.example.com"
 
 
+def test_domain_of_strips_common_subdomains():
+    # near-duplicates collapse to the registrable domain
+    assert domain_of("https://app.klingai.com") == "klingai.com"
+    assert domain_of("https://docs.docmee.cn") == "docmee.cn"
+    assert domain_of("https://api.openai.com/v1") == "openai.com"
+    assert domain_of("https://developer.x.ai") == "x.ai"
+    # meaningful subdomains are preserved
+    assert domain_of("https://jimeng.jianying.com") == "jimeng.jianying.com"
+    # never strip below 2 labels
+    assert domain_of("https://app.io") == "app.io"
+
+
+def test_dedup_collapses_subdomain_variants(db):
+    a, new_a = db.upsert_candidate(
+        Candidate(url="https://klingai.com", source_platform="hn", upvotes=5))
+    b, new_b = db.upsert_candidate(
+        Candidate(url="https://app.klingai.com/create", source_platform="ph",
+                  upvotes=20))
+    assert a == b and new_a is True and new_b is False
+    row = db.get(a)
+    assert row["upvotes"] == 20
+    assert "hn" in row["platforms"] and "ph" in row["platforms"]
+
+
 def test_schema_created(db):
     tables = {r[0] for r in db.conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table'")}
