@@ -48,8 +48,8 @@ SOURCE_NAMES = [
 
 EXPORT_COLS = ["domain", "name", "category", "score", "has_api",
                "api_docs_url", "has_referral", "referral_url",
-               "referral_commission", "pricing_model", "source_url",
-               "platforms", "description"]
+               "referral_commission", "affiliate_platform", "pricing_model",
+               "source_url", "platforms", "description"]
 
 
 def _source_registry(db: DB, cfg: dict) -> dict:
@@ -237,7 +237,9 @@ def cmd_links(db: DB, limit: int) -> None:
     for r in rows:
         name = r["name"] or r["domain"]
         comm = f" ({r['referral_commission']})" if r["referral_commission"] else ""
-        print(f"[{r['score']:>3}] {name}{comm}")
+        plat = r["affiliate_platform"] if "affiliate_platform" in r.keys() else ""
+        via = f" via {plat}" if plat else ""
+        print(f"[{r['score']:>3}] {name}{comm}{via}")
         if r["referral_url"]:
             print(f"      referral: {r['referral_url']}")
         if r["api_docs_url"]:

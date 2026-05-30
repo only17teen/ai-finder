@@ -217,3 +217,20 @@ def test_export_json_and_md(tmp_path):
     assert text.startswith("| domain |")
     assert "a.ai" in text and "---" in text
     db.close()
+
+
+def test_cli_links_shows_platform(tmp_path, capsys):
+    cfile = tmp_path / "c.toml"
+    dbfile = tmp_path / "lp.db"
+    cfile.write_text(f'db_path = "{dbfile}"\n')
+    db = DB(dbfile)
+    sid, _ = db.upsert_candidate(Candidate(url="https://earn.ai", name="EarnAI",
+                                           source_platform="hn"))
+    db.update_service(sid, has_referral=1, score=80,
+                      referral_url="https://earn.ai/aff",
+                      affiliate_platform="Rewardful")
+    db.close()
+    rc = cli.main(["--config", str(cfile), "links"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "via Rewardful" in out and "earn.ai/aff" in out
