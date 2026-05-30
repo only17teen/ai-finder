@@ -22,7 +22,7 @@ from .db import DB
 from .collectors import (hackernews, linux_forums, apify_sources,
                          ai_directories, github_trending, telegram_channels,
                          hidden_gems, foss_sources, forums, asian_dev, launch,
-                         reddit_rss)
+                         reddit_rss, intl_forums)
 from . import verifier, scorer, notifier
 
 log = logging.getLogger("ai_finder")
@@ -31,6 +31,7 @@ log = logging.getLogger("ai_finder")
 SOURCE_NAMES = [
     "hackernews", "linux_forums", "apify", "ai_directories", "github_trending",
     "hidden_gems", "foss", "forums", "asian_dev", "launch", "reddit", "telegram",
+    "intl_forums",
 ]
 
 EXPORT_COLS = ["domain", "name", "category", "score", "has_api",
@@ -56,6 +57,7 @@ def _source_registry(db: DB, cfg: dict) -> dict:
         "asian_dev": lambda: asian_dev.collect(db),
         "launch": lambda: launch.collect(db),
         "reddit": lambda: reddit_rss.collect(db),
+        "intl_forums": lambda: intl_forums.collect(db),
         "telegram": lambda: telegram_channels.collect(
             db, tg["api_id"], tg["api_hash"], tg["channels"]),
     }

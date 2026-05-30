@@ -14,6 +14,7 @@ DEFAULTS = {
         "ai_directories": True, "github_trending": True, "telegram": False,
         "hidden_gems": True, "foss": True, "forums": True,
         "asian_dev": True, "launch": True, "reddit": True,
+        "intl_forums": True,
     },
     "limits": {"hackernews": 100, "github_trending": 25},
     "rate": {"per_domain_delay": 1.0, "max_retries": 3},
