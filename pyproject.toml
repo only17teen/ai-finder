@@ -10,6 +10,7 @@ dependencies = [
     "apify-client>=1.7",
     "telethon>=1.36",
     "schedule>=1.2",
+    "tldextract>=5.0",
 ]
 
 [project.optional-dependencies]

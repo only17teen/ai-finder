@@ -6,7 +6,8 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlparse
+
+import tldextract
 
 DEFAULT_DB = Path(__file__).resolve().parent.parent / "ai_finder.db"
 
@@ -67,36 +68,33 @@ _COMMON_SUBDOMAINS = {
     "portal", "platform", "try", "start", "home", "web",
 }
 
-# Multi-level public suffixes: the registrable domain has one more label.
-_MULTI_TLDS = {
-    "co.uk", "org.uk", "ac.uk", "gov.uk", "com.cn", "net.cn", "org.cn",
-    "com.br", "com.au", "com.tr", "co.jp", "or.jp", "ne.jp", "co.kr",
-    "or.kr", "com.tw", "com.hk", "com.sg", "co.in", "com.mx", "co.za",
-}
-
-
-def _min_labels(labels: list[str]) -> int:
-    """Smallest label count that still includes the registrable name
-    (3 for a multi-level public suffix like co.uk, else 2)."""
-    return 3 if ".".join(labels[-2:]) in _MULTI_TLDS else 2
+# Offline extractor backed by the bundled Public Suffix List snapshot.
+_TLD = tldextract.TLDExtract(suffix_list_urls=())
 
 
 def domain_of(url: str) -> str:
-    """Normalize a URL to its registrable host: lowercased, common
-    service subdomains stripped (www/app/docs/api/...), so near-duplicates
-    like ``app.klingai.com`` and ``klingai.com`` collapse to one key.
+    """Normalize a URL to its registrable host using the Public Suffix List,
+    with common service subdomains stripped (www/app/docs/api/...).
 
-    Multi-level TLDs are respected (``app.co.uk`` stays ``app.co.uk``, not
-    ``co.uk``). Meaningful subdomains (e.g. ``jimeng.jianying.com``) are kept.
+    - Multi-level suffixes are handled correctly (``foo.com.cn`` →
+      ``foo.com.cn``, ``app.foo.com.cn`` → ``foo.com.cn``).
+    - Near-duplicates collapse (``app.klingai.com`` → ``klingai.com``).
+    - Meaningful subdomains are kept (``jimeng.jianying.com`` stays whole).
     """
     if "://" not in url:
         url = "http://" + url
-    host = (urlparse(url).hostname or "").lower()
-    labels = host.split(".")
-    min_keep = _min_labels(labels)
-    while len(labels) > min_keep and labels[0] in _COMMON_SUBDOMAINS:
-        labels.pop(0)
-    return ".".join(labels)
+    ext = _TLD(url)
+    registrable = ext.top_domain_under_public_suffix  # e.g. foo.com.cn
+    if not registrable:
+        # no recognizable public suffix — fall back to the raw host
+        from urllib.parse import urlparse
+        return (urlparse(url).hostname or "").lower()
+    # strip only the *leading* common-service labels from the subdomain part
+    sub_labels = [s for s in ext.subdomain.split(".") if s]
+    while sub_labels and sub_labels[0] in _COMMON_SUBDOMAINS:
+        sub_labels.pop(0)
+    host = ".".join(sub_labels + [registrable])
+    return host.lower()
 
 
 # Generic/infra domains that are never the niche AI service we want to track.
