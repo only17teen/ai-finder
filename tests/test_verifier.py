@@ -198,6 +198,23 @@ def test_probe_circuit_breaker_aborts(monkeypatch):
     assert out["has_api"] is False
 
 
+def test_verify_falls_back_to_stealth(monkeypatch):
+    import asyncio
+
+    from ai_finder import verifier
+
+    async def empty_render(url, *a, **k):
+        return ""
+
+    async def stealth_render(url, *a, **k):
+        return FULL  # stealth succeeds where plain render failed
+
+    monkeypatch.setattr("ai_finder.verifier.render", empty_render)
+    monkeypatch.setattr("ai_finder.browser.render_stealth", stealth_render)
+    findings = asyncio.run(verifier.verify("https://blocked.example"))
+    assert findings.get("has_api") and findings.get("has_referral")
+
+
 def test_detect_affiliate_platform():
     from ai_finder.verifier import detect_affiliate_platform
     assert detect_affiliate_platform(

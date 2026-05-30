@@ -140,6 +140,10 @@ async def verify(url: str) -> dict:
     base = url if "://" in url else f"https://{url}"
     html = await render(base)
     if not html:
+        # plain render blocked (Cloudflare etc.) — try the stealth browser once
+        from .browser import render_stealth
+        html = await render_stealth(base)
+    if not html:
         return {}
     findings = analyze_html(html, base)
     return await _probe_missing(base, findings)
