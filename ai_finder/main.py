@@ -125,12 +125,28 @@ async def cmd_verify(url: str) -> None:
         print(f"  {k:<20} {f.get(k)}")
 
 
+def _rows_to_dicts(rows):
+    return [{k: r[k] for k in EXPORT_COLS} for r in rows]
+
+
+def _to_markdown(rows) -> str:
+    cols = ["domain", "name", "category", "score", "has_api",
+            "has_referral", "referral_commission", "referral_url", "api_docs_url"]
+    out = ["| " + " | ".join(cols) + " |",
+           "|" + "|".join("---" for _ in cols) + "|"]
+    for r in rows:
+        cells = [str(r[c] if r[c] is not None else "").replace("|", "\\|")
+                 for c in cols]
+        out.append("| " + " | ".join(cells) + " |")
+    return "\n".join(out) + "\n"
+
+
 def cmd_export(db: DB, out: str, min_score: int = 0,
-               require_referral: bool = True) -> None:
-    """Export services to CSV.
+               require_referral: bool = True, fmt: str = "csv") -> None:
+    """Export services to CSV/JSON/Markdown.
 
     Default: those with API *and* referral. `--all` drops the referral
-    requirement; `--min-score` filters by score.
+    requirement; `--min-score` filters by score; `--format` picks the writer.
     """
     def keep(r) -> bool:
         if r["score"] < min_score:
@@ -141,11 +157,18 @@ def cmd_export(db: DB, out: str, min_score: int = 0,
 
     rows = [r for r in db.all_services() if keep(r)]
     rows.sort(key=lambda r: r["score"], reverse=True)
-    with open(out, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=EXPORT_COLS, extrasaction="ignore")
-        w.writeheader()
-        for r in rows:
-            w.writerow({k: r[k] for k in EXPORT_COLS})
+    if fmt == "json":
+        with open(out, "w") as f:
+            json.dump(_rows_to_dicts(rows), f, ensure_ascii=False, indent=2)
+    elif fmt == "md":
+        with open(out, "w") as f:
+            f.write(_to_markdown(rows))
+    else:  # csv
+        with open(out, "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=EXPORT_COLS, extrasaction="ignore")
+            w.writeheader()
+            for r in rows:
+                w.writerow({k: r[k] for k in EXPORT_COLS})
     print(f"Exported {len(rows)} services to {out}")
 
 
@@ -263,7 +286,8 @@ def main(argv: list[str] | None = None) -> int:
     p_ver = sub.add_parser("verify")
     p_ver.add_argument("--url", required=True)
     p_exp = sub.add_parser("export")
-    p_exp.add_argument("--out", default="ai_services.csv")
+    p_exp.add_argument("--out", default=None)
+    p_exp.add_argument("--format", choices=["csv", "json", "md"], default="csv")
     p_exp.add_argument("--min-score", type=int, default=0)
     p_exp.add_argument("--all", action="store_true",
                        help="include API-only services (drop referral requirement)")
@@ -313,8 +337,9 @@ def main(argv: list[str] | None = None) -> int:
             if args.cmd == "run":
                 asyncio.run(cmd_run(db, cfg, args.source))
             elif args.cmd == "export":
-                cmd_export(db, args.out, min_score=args.min_score,
-                           require_referral=not args.all)
+                out = args.out or f"ai_services.{args.format}"
+                cmd_export(db, out, min_score=args.min_score,
+                           require_referral=not args.all, fmt=args.format)
             elif args.cmd == "top":
                 cmd_top(db, args.limit, as_json=args.json)
             elif args.cmd == "status":

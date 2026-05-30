@@ -55,7 +55,8 @@ python -m ai_finder.main run --source reddit
 python -m ai_finder.main sources          # list collectors and on/off state
 python -m ai_finder.main top --limit 30   # highest-scoring finds
 python -m ai_finder.main export --out ai_services.csv          # API + referral
-python -m ai_finder.main export --all --min-score 30           # API-only, score>=30
+python -m ai_finder.main export --format md --out top.md       # Markdown table
+python -m ai_finder.main export --format json --all --min-score 30  # JSON, API-only
 python -m ai_finder.main status
 python -m ai_finder.main verify --url geekai.co
 python -m ai_finder.main search --keyword video --category video --min-score 30
@@ -85,7 +86,7 @@ from env vars and never committed:
 ## Tests
 
 ```bash
-python -m pytest        # 126 tests
+python -m pytest        # 127 tests
 ```
 
 Parsing/scoring logic is written as pure functions, unit-tested with fixtures (no

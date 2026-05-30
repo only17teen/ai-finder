@@ -196,3 +196,24 @@ def test_cli_digest(tmp_path, capsys, monkeypatch):
     rc = cli.main(["--config", str(cfile), "digest", "--limit", "5"])
     assert rc == 0
     assert "Digest sent." in capsys.readouterr().out
+
+
+def test_export_json_and_md(tmp_path):
+    import json
+    db = DB(tmp_path / "t.db")
+    a, _ = db.upsert_candidate(Candidate(url="https://a.ai", name="A",
+                                         source_platform="hn"))
+    db.update_service(a, has_api=1, has_referral=1, score=80, category="code",
+                      referral_commission="30%", referral_url="https://a.ai/aff")
+    # JSON
+    j = tmp_path / "out.json"
+    cli.cmd_export(db, str(j), fmt="json")
+    data = json.loads(j.read_text())
+    assert data[0]["domain"] == "a.ai" and data[0]["referral_commission"] == "30%"
+    # Markdown
+    m = tmp_path / "out.md"
+    cli.cmd_export(db, str(m), fmt="md")
+    text = m.read_text()
+    assert text.startswith("| domain |")
+    assert "a.ai" in text and "---" in text
+    db.close()
