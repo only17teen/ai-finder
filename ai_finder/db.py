@@ -4,7 +4,7 @@ from __future__ import annotations
 import sqlite3
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 

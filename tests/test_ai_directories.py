@@ -1,6 +1,8 @@
 """Tests for AI directory link extraction (pure, no browser)."""
 from ai_finder.collectors.ai_directories import (
-    extract_candidates, extract_detail_links, extract_outbound,
+    extract_candidates,
+    extract_detail_links,
+    extract_outbound,
 )
 
 SRC = "https://theresanaiforthat.com/"

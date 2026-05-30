@@ -1,8 +1,8 @@
 """Tests for Telegram notifier (pure formatting + gating, no network)."""
 import asyncio
 
-from ai_finder.notifier import format_service, notify_new
 from ai_finder.db import DB, Candidate
+from ai_finder.notifier import format_service, notify_new
 
 
 def test_format_includes_key_fields():

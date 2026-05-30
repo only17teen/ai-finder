@@ -6,10 +6,9 @@ Link extraction from message text is pure and unit-tested.
 """
 from __future__ import annotations
 
-import asyncio
 import re
 
-from ..db import Candidate, domain_of, DB
+from ..db import DB, Candidate, domain_of
 from ..keywords import is_ai_related
 
 PLATFORM = "telegram"

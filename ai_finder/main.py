@@ -18,12 +18,23 @@ import logging
 import sys
 
 from . import config as _config
+from . import notifier, scorer, verifier
+from .collectors import (
+    ai_directories,
+    apify_sources,
+    asian_dev,
+    forums,
+    foss_sources,
+    github_trending,
+    hackernews,
+    hidden_gems,
+    intl_forums,
+    launch,
+    linux_forums,
+    reddit_rss,
+    telegram_channels,
+)
 from .db import DB
-from .collectors import (hackernews, linux_forums, apify_sources,
-                         ai_directories, github_trending, telegram_channels,
-                         hidden_gems, foss_sources, forums, asian_dev, launch,
-                         reddit_rss, intl_forums)
-from . import verifier, scorer, notifier
 
 log = logging.getLogger("ai_finder")
 
@@ -107,7 +118,8 @@ async def cmd_run(db: DB, cfg: dict, only: str | None) -> None:
 async def cmd_verify(url: str) -> None:
     f = await verifier.verify(url)
     if not f:
-        print("unreachable / no HTML"); return
+        print("unreachable / no HTML")
+        return
     for k in ("name", "has_api", "api_docs_url", "has_referral",
               "referral_url", "referral_commission", "pricing_model"):
         print(f"  {k:<20} {f.get(k)}")
@@ -184,7 +196,8 @@ def cmd_search(db: DB, keyword: str, category: str, min_score: int,
                          ensure_ascii=False, indent=2))
         return
     if not rows:
-        print("No matches."); return
+        print("No matches.")
+        return
     for r in rows:
         print(f"  [{r['score']:>3}] {r['category'] or '-':<11} "
               f"{r['domain']:<30} api={r['has_api']} ref={r['has_referral']}")
@@ -198,7 +211,8 @@ def main(argv: list[str] | None = None) -> int:
     p_run = sub.add_parser("run")
     p_run.add_argument("--source", default=None, choices=SOURCE_NAMES,
                        metavar="NAME", help="one of: " + ", ".join(SOURCE_NAMES))
-    p_ver = sub.add_parser("verify"); p_ver.add_argument("--url", required=True)
+    p_ver = sub.add_parser("verify")
+    p_ver.add_argument("--url", required=True)
     p_exp = sub.add_parser("export")
     p_exp.add_argument("--out", default="ai_services.csv")
     p_exp.add_argument("--min-score", type=int, default=0)

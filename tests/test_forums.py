@@ -1,6 +1,7 @@
 """Tests for forums collector (Lemmy + dev.to mapping, pure)."""
 from ai_finder.collectors.forums import (
-    lemmy_post_to_candidate, devto_article_to_candidate,
+    devto_article_to_candidate,
+    lemmy_post_to_candidate,
 )
 
 

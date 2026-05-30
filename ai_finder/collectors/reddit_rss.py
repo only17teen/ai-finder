@@ -67,8 +67,9 @@ def extract_from_rss(xml: str) -> list[Candidate]:
 
 
 async def fetch_candidates(subreddits: list[str] | None = None) -> list[Candidate]:
-    from ..net import fetch, RateLimiter
     import httpx
+
+    from ..net import RateLimiter, fetch
     subs = subreddits or SUBREDDITS
     limiter = RateLimiter(per_domain_delay=2.0)  # be polite to reddit
     urls = [RSS.format(sub=s) for s in subs]

@@ -1,8 +1,8 @@
 """Tests for freshness tracker (diff_fields pure + recheck with mocked verify)."""
 import asyncio
 
-from ai_finder.tracker import diff_fields, recheck_service, recheck_all
 from ai_finder.db import DB, Candidate
+from ai_finder.tracker import diff_fields, recheck_all, recheck_service
 
 
 def test_diff_fields_detects_changes():

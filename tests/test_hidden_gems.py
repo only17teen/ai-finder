@@ -1,7 +1,9 @@
 """Tests for hidden_gems collector (pure functions, no network)."""
 from ai_finder.collectors.hidden_gems import (
-    extract_from_directory, hf_space_to_candidate,
-    extract_rankmyai_links, extract_rankmyai_outbound,
+    extract_from_directory,
+    extract_rankmyai_links,
+    extract_rankmyai_outbound,
+    hf_space_to_candidate,
 )
 
 SRC = "https://ai-bot.cn/"

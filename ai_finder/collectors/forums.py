@@ -58,7 +58,7 @@ def devto_article_to_candidate(art: dict) -> Candidate | None:
 
 
 async def fetch_candidates() -> list[Candidate]:
-    from ..net import fetch, RateLimiter
+    from ..net import RateLimiter, fetch
     limiter = RateLimiter(per_domain_delay=1.0)
     out: list[Candidate] = []
     async with httpx.AsyncClient(follow_redirects=True) as client:

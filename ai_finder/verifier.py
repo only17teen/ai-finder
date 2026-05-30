@@ -11,8 +11,8 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-from .db import DB
 from .browser import render
+from .db import DB
 
 # Path/keyword signals for each capability.
 API_PATHS = ("/api", "/docs", "/documentation", "/developer", "/developers",
@@ -108,8 +108,6 @@ def analyze_html(html: str, base_url: str) -> dict:
 
 async def verify(url: str) -> dict:
     """Render `url` and analyze it. Returns findings (empty dict on failure)."""
-async def verify(url: str) -> dict:
-    """Render `url` and analyze it. Returns findings (empty dict on failure)."""
     base = url if "://" in url else f"https://{url}"
     html = await render(base)
     if not html:
@@ -148,8 +146,9 @@ def merge_findings(base: dict, probed: dict) -> dict:
 
 async def _probe_missing(base_url: str, findings: dict) -> dict:
     """Probe known paths for capabilities the homepage didn't reveal."""
-    import httpx
     from urllib.parse import urljoin
+
+    import httpx
     needed = [cap for cap, key in (("api", "has_api"), ("referral", "has_referral"),
                                    ("pricing", "pricing_info"))
               if not findings.get(key)]

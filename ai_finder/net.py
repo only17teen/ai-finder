@@ -12,7 +12,7 @@ import time
 
 import httpx
 
-from .db import domain_of, is_noise_domain, NOISE_DOMAINS  # noqa: F401
+from .db import NOISE_DOMAINS, domain_of, is_noise_domain  # noqa: F401
 
 log = logging.getLogger("ai_finder")
 

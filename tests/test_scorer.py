@@ -1,6 +1,6 @@
 """Tests for scoring + categorization (pure) and rescore_all."""
-from ai_finder.scorer import score_service, categorize, rescore_all
 from ai_finder.db import DB, Candidate
+from ai_finder.scorer import categorize, rescore_all, score_service
 
 
 def test_score_full_stack():

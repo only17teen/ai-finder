@@ -1,8 +1,8 @@
 """Tests for site verifier analysis (pure, no browser)."""
 import asyncio
 
-from ai_finder.verifier import analyze_html, extract_commission, verify_service
 from ai_finder.db import DB, Candidate
+from ai_finder.verifier import analyze_html, extract_commission, verify_service
 
 BASE = "https://geekai.co"
 

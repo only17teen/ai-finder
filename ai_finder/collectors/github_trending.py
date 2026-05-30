@@ -12,7 +12,7 @@ import asyncio
 import httpx
 from bs4 import BeautifulSoup
 
-from ..db import Candidate, domain_of, DB
+from ..db import DB, Candidate, domain_of
 from ..keywords import is_ai_related
 
 PLATFORM = "github_trending"
@@ -55,9 +55,8 @@ def extract_homepage(repo_html: str) -> str:
 
 
 async def fetch_candidates(limit: int = 25) -> list[Candidate]:
-    from ..net import fetch, RateLimiter
+    from ..net import RateLimiter, fetch
     limiter = RateLimiter(per_domain_delay=1.0)
-    out: list[Candidate] = []
     async with httpx.AsyncClient(follow_redirects=True) as client:
         r = await fetch(client, TRENDING_URL, limiter=limiter)
         if not r:

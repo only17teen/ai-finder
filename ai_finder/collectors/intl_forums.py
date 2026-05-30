@@ -52,8 +52,9 @@ def extract_candidates(html: str, source_url: str) -> list[Candidate]:
 
 
 async def fetch_candidates() -> list[Candidate]:
-    from ..net import fetch, RateLimiter
     import httpx
+
+    from ..net import RateLimiter, fetch
     limiter = RateLimiter(per_domain_delay=1.0)
     out: list[Candidate] = []
     async with httpx.AsyncClient(

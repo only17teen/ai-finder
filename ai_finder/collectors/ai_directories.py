@@ -10,9 +10,9 @@ import asyncio
 
 from bs4 import BeautifulSoup
 
+from ..browser import render
 from ..db import DB, Candidate, domain_of
 from ..keywords import is_ai_related, mentions_api
-from ..browser import render
 
 PLATFORM = "ai_directory"
 

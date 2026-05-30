@@ -2,8 +2,8 @@
 import csv
 
 from ai_finder import config as cfgmod
-from ai_finder.db import DB, Candidate
 from ai_finder import main as cli
+from ai_finder.db import DB, Candidate
 
 
 def test_config_defaults_when_missing(tmp_path):

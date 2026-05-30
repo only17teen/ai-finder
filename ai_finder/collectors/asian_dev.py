@@ -57,11 +57,11 @@ def extract_from_text(title: str, body: str, upvotes: int = 0) -> list[Candidate
 
 
 async def fetch_candidates() -> list[Candidate]:
-    from ..net import fetch, RateLimiter
+    from ..net import RateLimiter
+    from ..net import fetch as _f
     limiter = RateLimiter(per_domain_delay=1.0)
     out: list[Candidate] = []
     async with httpx_client() as client:
-        from ..net import fetch as _f
         rv, rq, rz = await asyncio.gather(
             _f(client, V2EX_API, limiter=limiter),
             _f(client, QIITA_API, limiter=limiter),

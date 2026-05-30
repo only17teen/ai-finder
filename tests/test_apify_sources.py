@@ -2,7 +2,9 @@
 import asyncio
 
 from ai_finder.collectors.apify_sources import (
-    item_to_candidate, fetch_candidates, PLATFORM_PH,
+    PLATFORM_PH,
+    fetch_candidates,
+    item_to_candidate,
 )
 
 

@@ -5,7 +5,7 @@ import httpx
 import pytest
 
 from ai_finder import net
-from ai_finder.db import is_noise_domain, DB, Candidate
+from ai_finder.db import DB, Candidate, is_noise_domain
 
 
 def test_is_noise_domain():

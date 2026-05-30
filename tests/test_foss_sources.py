@@ -1,6 +1,7 @@
 """Tests for foss_sources collector (pure functions, no network)."""
 from ai_finder.collectors.foss_sources import (
-    extract_links, algolia_hit_to_candidate,
+    algolia_hit_to_candidate,
+    extract_links,
 )
 
 SRC = "https://lobste.rs/t/ai"
