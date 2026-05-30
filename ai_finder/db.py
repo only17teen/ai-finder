@@ -117,6 +117,8 @@ NEWS_DOMAINS = {
     "cnet.com", "axios.com", "aljazeera.com", "theguardian.com", "cnn.com",
     "tomshardware.com", "sfstandard.com", "tiktok.com", "arxiv.org",
     "404media.co", "theregister.com", "thurrott.com", "neowin.net",
+    "scientificamerican.com", "boredpanda.com", "nature.com",
+    "spectrum.ieee.org", "phys.org", "sciencedaily.com",
 }
 
 

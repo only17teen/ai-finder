@@ -16,7 +16,8 @@ from ..keywords import is_ai_related
 PLATFORM = "forums"
 
 # Lemmy instances (federated). Public search API, no auth.
-LEMMY_INSTANCES = ["lemmy.world", "programming.dev", "lemmy.ml"]
+LEMMY_INSTANCES = ["lemmy.world", "programming.dev", "lemmy.ml",
+                   "lemmy.dbzer0.com", "sh.itjust.works", "feddit.org"]
 LEMMY_SEARCH = ("https://{inst}/api/v3/search"
                 "?q=AI&type_=Posts&sort=New&limit=40")
 
