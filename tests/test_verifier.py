@@ -83,10 +83,19 @@ def test_detects_chinese_capabilities():
 
 
 def test_text_only_signal_does_not_set_url():
-    html = "<html><body><p>We have a great API for developers</p></body></html>"
+    html = "<html><body><p>Get your API key in the developer dashboard</p></body></html>"
     r = analyze_html(html, BASE)
-    assert r["has_api"] is True
+    assert r["has_api"] is True   # "api key" is a strong phrase
     assert r["api_docs_url"] == ""  # signal from text, no specific link
+
+
+def test_prose_loose_words_are_not_false_positives():
+    # a news article mentioning "api"/"earn" in prose must NOT register signals
+    html = ("<html><body><p>OpenAI's new model could earn billions. "
+            "The API economy is booming, experts say.</p></body></html>")
+    r = analyze_html(html, BASE)
+    assert r["has_api"] is False
+    assert r["has_referral"] is False
 
 
 def test_verify_service_persists(tmp_path, monkeypatch):

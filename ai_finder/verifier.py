@@ -37,6 +37,16 @@ PRICING_TEXT = ("pricing", "free tier", "pay as you go", "/month", "per month",
                 "价格", "定价", "会员", "套餐", "充值", "免费试用", "订阅",
                 "元/月", "积分")
 
+# Specific phrases that, in body prose, reliably indicate the capability —
+# used for the body-text fallback to avoid false positives from loose words.
+API_STRONG = ("api key", "api reference", "rest api", "graphql", "api文档",
+              "开放平台", "开发文档")
+REFERRAL_STRONG = ("affiliate program", "referral program", "refer a friend",
+                   "earn commission", "invite friends", "推荐奖励", "返佣",
+                   "佣金", "合伙人", "分销")
+PRICING_STRONG = ("free tier", "pay as you go", "per month", "free trial",
+                  "免费试用", "元/月")
+
 _COMMISSION_RE = re.compile(
     r"(\d{1,3})\s*%\s*(?:recurring\s*)?(?:commission|cut|payout|revenue|rev[\s-]?share)"
     r"|earn\s+(?:up\s+to\s+)?(\d{1,3})\s*%"
@@ -84,13 +94,19 @@ def _links(soup: BeautifulSoup, base_url: str):
         yield urljoin(base_url, href), text, href.lower()
 
 
-def _match(links, page_text, paths, texts):
-    """Return matching URL (or '') if any path/anchor/page signal is present."""
+def _match(links, page_text, paths, texts, strong_texts=None):
+    """Return matching URL (or '') if a path/anchor signal is present.
+
+    Anchor/path matches use `texts` (may include loose words, since anchor
+    context is tight). The body-text fallback only fires on `strong_texts`
+    (specific phrases) to avoid false positives from prose like "earn" / "API"
+    appearing in a news article.
+    """
     for url, anchor, href in links:
         if any(p in href for p in paths) or any(t == anchor or t in anchor for t in texts):
             return url
-    # fallback: keyword present in page body (no specific link)
-    return "" if not any(t in page_text for t in texts) else "__text__"
+    strong = strong_texts if strong_texts is not None else texts
+    return "__text__" if any(t in page_text for t in strong) else ""
 
 
 def extract_commission(text: str) -> str:
@@ -107,9 +123,9 @@ def analyze_html(html: str, base_url: str) -> dict:
     links = list(_links(soup, base_url))
     body_text = soup.get_text(" ", strip=True).lower()
 
-    api_url = _match(links, body_text, API_PATHS, API_TEXT)
-    ref_url = _match(links, body_text, REFERRAL_PATHS, REFERRAL_TEXT)
-    price_url = _match(links, body_text, PRICING_PATHS, PRICING_TEXT)
+    api_url = _match(links, body_text, API_PATHS, API_TEXT, API_STRONG)
+    ref_url = _match(links, body_text, REFERRAL_PATHS, REFERRAL_TEXT, REFERRAL_STRONG)
+    price_url = _match(links, body_text, PRICING_PATHS, PRICING_TEXT, PRICING_STRONG)
 
     title = (soup.title.get_text(strip=True) if soup.title else "")
     desc_el = soup.find("meta", attrs={"name": "description"}) or \
