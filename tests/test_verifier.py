@@ -150,6 +150,33 @@ def test_verify_services_batch(tmp_path, monkeypatch):
     db.close()
 
 
+def test_verify_batch_probes_when_homepage_bare(tmp_path, monkeypatch):
+    from ai_finder.verifier import verify_services_batch
+    db = DB(tmp_path / "t.db")
+    sid, _ = db.upsert_candidate(
+        Candidate(url="https://bare.ai", source_platform="hn"))
+
+    bare = "<html><head><title>Bare</title></head><body>hi</body></html>"
+
+    async def fake_render_many(urls, *a, **k):
+        return {u: bare for u in urls}
+    monkeypatch.setattr("ai_finder.browser.render_many", fake_render_many)
+
+    probed = []
+
+    async def fake_probe(url, findings):
+        probed.append(url)
+        findings["has_api"] = True
+        findings["api_docs_url"] = "https://bare.ai/api"
+        return findings
+    monkeypatch.setattr("ai_finder.verifier._probe_missing", fake_probe)
+
+    asyncio.run(verify_services_batch(db, [sid]))
+    assert probed == ["https://bare.ai"]   # homepage bare -> probed
+    assert db.get(sid)["has_api"] == 1
+    db.close()
+
+
 def test_merge_findings_fills_missing():
     from ai_finder.verifier import merge_findings
     base = {"has_api": False, "api_docs_url": "", "has_referral": True,

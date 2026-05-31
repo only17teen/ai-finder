@@ -275,8 +275,13 @@ async def verify_services_batch(db: DB, service_ids: list[int],
     if blocked:
         html_by_url.update(await render_stealth_many(blocked))
     for r in rows:
-        html = html_by_url.get(urls[r["id"]], "")
-        findings = analyze_html(html, urls[r["id"]]) if html else {}
+        url = urls[r["id"]]
+        html = html_by_url.get(url, "")
+        findings = analyze_html(html, url) if html else {}
+        # Probe known paths (/api, /affiliate, /fenxiao, /pricing) when the
+        # homepage revealed neither API nor referral — same as single verify().
+        if findings and not (findings.get("has_api") and findings.get("has_referral")):
+            findings = await _probe_missing(url, findings)
         db.update_service(r["id"], **_persist_fields(r, findings))
     return len(rows)
 
