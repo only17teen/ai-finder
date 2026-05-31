@@ -8,33 +8,39 @@ communities, European directories, FOSS/self-hosted hubs, and ultra-early launch
 platforms. Verifies each site for an API + affiliate program, scores it, stores it
 in SQLite, and can notify you on Telegram.
 
-## Sources (13 collectors)
+## Sources (15 collectors)
 
 | Collector | Coverage |
 |-----------|----------|
 | `hackernews` | Show HN (Firebase API) |
 | `linux_forums` | LWN, Phoronix, ItsFOSS |
 | `apify_sources` | ProductHunt + IndieHackers (needs Apify token) |
-| `ai_directories` | theresanaiforthat / toolify / futurepedia (two-level crawl) |
+| `ai_directories` | theresanaiforthat / toolify / futurepedia (two-level crawl, stealth) |
 | `github_trending` | trending AI repos → their SaaS homepages |
 | `hidden_gems` | 🇨🇳 ai-bot.cn, aigc.cn · 🇫🇷 aixploria, intelligence-artificielle · rankmyai (CN/KR/JP/TW/SG) · HuggingFace Spaces |
-| `foss_sources` | Lobsters, Slashdot, HN-newest, HN Algolia, self-hosted lists |
+| `foss_sources` | Lobsters, Slashdot, HN-newest/Show, HN Algolia, self-hosted lists |
 | `forums` | Lemmy (federated FOSS) + dev.to |
 | `asian_dev` | 🇨🇳 V2EX · 🇯🇵 Qiita, Zenn |
-| `launch` | MicroLaunch, TinyLaunch (days-old indie launches) |
+| `launch` | MicroLaunch, TinyLaunch, startupbase (days-old indie launches) |
 | `reddit_rss` | LocalLLaMA, selfhosted, StableDiffusion, ollama, comfyui, … |
 | `intl_forums` | 🇰🇷 Korean GeekNews (news.hada.io) |
+| `mastodon` | federated #ai hashtag timelines (link cards) |
+| `linux_do` | 🇨🇳 linux.do Discourse forum (AI services + invites, stealth) |
 | `telegram_channels` | public AI channels (needs Telegram API creds) |
 
 ## Pipeline
 
 ```
-collect (12 sources, concurrent) → dedup by domain → verify (1 shared browser)
+collect (15 sources, concurrent) → dedup by domain → verify (1 shared browser)
 → score + categorize → SQLite → CSV export + Telegram alerts
 ```
 
-- **Verification** (`verifier.py`): detects API docs, referral program, pricing, and
-  the commission %. Bilingual — English **and** Chinese patterns (开放平台, 分销, 返佣…).
+- **Stealth** (`browser.py`): Cloudflare-walled sources (linux.do, toolify, futurepedia)
+  are fetched with Camoufox; a shared browser context reuses the clearance cookie across
+  pages. Plain `httpx`/Playwright stays the fast default; stealth is a fallback elsewhere.
+- **Verification** (`verifier.py`): detects API docs, referral program, pricing, the
+  commission %, and the affiliate platform (Rewardful/PartnerStack/Tolt/…). Bilingual —
+  English **and** Chinese patterns (开放平台, 分销, 返佣…).
 - **Scoring** (`scorer.py`): +30 API, +25 referral, +20 commission>20%, +15 multi-platform,
   +10 free tier, +5/100 upvotes (capped at +15). **Niche bonus** (+15) for monetizable
   services that are still under the radar (single platform, <100 upvotes) — keeps niche
@@ -48,6 +54,7 @@ collect (12 sources, concurrent) → dedup by domain → verify (1 shared browse
 python -m venv .venv && . .venv/bin/activate
 pip install -e .
 python -m playwright install chromium     # for JS-rendered sites
+pip install -e ".[stealth]" && python -m camoufox fetch  # Cloudflare-walled sites
 cp config.toml.example config.toml        # then edit / set env vars
 
 python -m ai_finder.main run              # full pipeline (all enabled sources)
@@ -89,7 +96,7 @@ committed (real env vars take precedence over `.env`):
 ## Tests
 
 ```bash
-python -m pytest        # 147 tests
+python -m pytest        # 164 tests
 ```
 
 Parsing/scoring logic is written as pure functions, unit-tested with fixtures (no
