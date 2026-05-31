@@ -282,6 +282,9 @@ class DB:
         c = self.conn
         return {
             "total": c.execute("SELECT COUNT(*) FROM services").fetchone()[0],
+            "pending": c.execute(
+                "SELECT COUNT(*) FROM services WHERE status='pending'"
+            ).fetchone()[0],
             "verified": c.execute(
                 "SELECT COUNT(*) FROM services WHERE status='verified'"
             ).fetchone()[0],

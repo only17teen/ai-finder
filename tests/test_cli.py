@@ -159,7 +159,7 @@ def test_cli_status_json(tmp_path, capsys):
     rc = cli.main(["--config", str(cfile), "status", "--json"])
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
-    assert set(data) == {"total", "verified", "with_api", "with_referral"}
+    assert set(data) == {"total", "pending", "verified", "with_api", "with_referral"}
 
 
 def test_cli_recheck_reports_changes(tmp_path, capsys, monkeypatch):

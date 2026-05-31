@@ -133,7 +133,7 @@ def cmd_status(db: DB, as_json: bool = False) -> None:
     if as_json:
         print(json.dumps(s, indent=2))
         return
-    print(f"total={s['total']} verified={s['verified']} "
+    print(f"total={s['total']} pending={s['pending']} verified={s['verified']} "
           f"with_api={s['with_api']} with_referral={s['with_referral']}")
 
 
