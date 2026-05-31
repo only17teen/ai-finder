@@ -105,6 +105,10 @@ def test_search(db):
     assert {r["domain"] for r in db.search(min_score=50)} == {"imagegen.ai"}
     rows = db.search(min_score=0)
     assert [r["domain"] for r in rows] == ["imagegen.ai", "codehelper.dev"]
+    # platform filter
+    db.update_service(a, affiliate_platform="Rewardful")
+    assert {r["domain"] for r in db.search(platform="Rewardful")} == {"imagegen.ai"}
+    assert db.search(platform="PartnerStack") == []
 
 
 def test_delete_services(db):

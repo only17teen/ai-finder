@@ -261,9 +261,10 @@ class DB:
             return len(ids)
 
     def search(self, keyword: str = "", category: str = "",
-               min_score: int = 0, limit: int = 50) -> list[sqlite3.Row]:
+               min_score: int = 0, platform: str = "",
+               limit: int = 50) -> list[sqlite3.Row]:
         """Filter services by keyword (domain/name/description), category,
-        and minimum score. Ordered by score desc."""
+        affiliate platform, and minimum score. Ordered by score desc."""
         clauses, params = ["score >= ?"], [min_score]
         if keyword:
             clauses.append("(domain LIKE ? OR name LIKE ? OR description LIKE ?)")
@@ -272,6 +273,9 @@ class DB:
         if category:
             clauses.append("category = ?")
             params.append(category)
+        if platform:
+            clauses.append("affiliate_platform = ?")
+            params.append(platform)
         params.append(limit)
         return self.conn.execute(
             f"SELECT * FROM services WHERE {' AND '.join(clauses)} "

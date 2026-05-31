@@ -246,9 +246,9 @@ async def cmd_recheck(db: DB, max_age_days: float, only_verified: bool) -> None:
 
 
 def cmd_search(db: DB, keyword: str, category: str, min_score: int,
-               limit: int, as_json: bool = False) -> None:
-    rows = db.search(keyword=keyword, category=category,
-                     min_score=min_score, limit=limit)
+               limit: int, platform: str = "", as_json: bool = False) -> None:
+    rows = db.search(keyword=keyword, category=category, min_score=min_score,
+                     platform=platform, limit=limit)
     if as_json:
         cols = ["domain", "name", "category", "score", "has_api",
                 "has_referral", "referral_commission", "api_docs_url",
@@ -290,6 +290,8 @@ def main(argv: list[str] | None = None) -> int:
     p_search.add_argument("--keyword", default="")
     p_search.add_argument("--category", default="")
     p_search.add_argument("--min-score", type=int, default=0)
+    p_search.add_argument("--platform", default="",
+                          help="filter by affiliate platform (e.g. Rewardful)")
     p_search.add_argument("--limit", type=int, default=50)
     p_search.add_argument("--json", action="store_true")
     p_prune = sub.add_parser("prune")
@@ -339,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
                 cmd_status(db, as_json=args.json)
             elif args.cmd == "search":
                 cmd_search(db, args.keyword, args.category, args.min_score,
-                           args.limit, as_json=args.json)
+                           args.limit, platform=args.platform, as_json=args.json)
             elif args.cmd == "prune":
                 cmd_prune(db, args.status)
             elif args.cmd == "recheck":
