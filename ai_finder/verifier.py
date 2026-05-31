@@ -16,8 +16,8 @@ from .db import DB
 
 # Path/keyword signals for each capability.
 API_PATHS = ("/api", "/docs", "/documentation", "/developer", "/developers",
-             "/reference", "swagger", "openapi", "/api-docs",
-             "/open", "/openapi", "/kaifa", "/wendang")  # 开放平台/开发/文档
+             "/reference", "/swagger", "/openapi", "/api-docs",
+             "/open", "/kaifa", "/wendang")  # 开放平台/开发/文档
 API_TEXT = ("api", "api key", "api reference", "developer", "rest api",
             "graphql", "sdk", "documentation",
             "开放平台", "开发者", "接口", "开发文档", "api文档", "调用")

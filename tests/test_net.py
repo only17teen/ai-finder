@@ -19,6 +19,10 @@ def test_is_noise_domain_news():
     assert is_noise_domain("bbc.com")
     assert is_noise_domain("techcrunch.com")
     assert is_noise_domain("steamcommunity.com")
+    assert is_noise_domain("futurism.com")
+    assert is_noise_domain("theatlantic.com")
+    assert is_noise_domain("lemmy.world")
+    assert is_noise_domain("feddit.it")
     assert not is_noise_domain("notta.ai")
 
 

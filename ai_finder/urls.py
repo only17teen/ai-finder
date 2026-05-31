@@ -65,6 +65,11 @@ NEWS_DOMAINS = {
     "404media.co", "theregister.com", "thurrott.com", "neowin.net",
     "scientificamerican.com", "boredpanda.com", "nature.com",
     "spectrum.ieee.org", "phys.org", "sciencedaily.com",
+    "futurism.com", "theatlantic.com", "currentaffairs.org", "euronews.com",
+    "vox.com", "wikipedia.org", "kit.com",
+    # fediverse / forum hosts that cross-link to each other (not services)
+    "lemmy.world", "lemmy.ml", "programming.dev", "lemmy.dbzer0.com",
+    "sh.itjust.works", "feddit.org", "feddit.it", "lemm.ee", "catbox.moe",
 }
 
 
