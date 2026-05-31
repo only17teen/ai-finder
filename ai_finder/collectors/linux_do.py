@@ -108,28 +108,21 @@ def extract_topic_links(topic_json: dict, title: str) -> list[Candidate]:
     return out
 
 
-async def _render_json(render, url: str, attempts: int = 3) -> dict:
-    """Render a Discourse .json URL, retrying past Cloudflare challenges."""
-    for _ in range(attempts):
-        data = parse_discourse_json(await render(url))
-        if data:
-            return data
-    return {}
-
-
 async def fetch_candidates(max_topics: int = 15) -> list[Candidate]:
-    from ..browser import render_stealth as render
+    from ..browser import render_stealth_many
     from ._base import dedup_by_domain
-    # Gather AI topic ids across feeds (dedup by id, keep first title).
+    # Feeds: one browser for all of them.
     seen_ids: dict[int, str] = {}
-    for feed in FEEDS:
-        data = await _render_json(render, feed)
-        for tid, title in ai_topic_ids(data):
+    feeds = await render_stealth_many(FEEDS)
+    for html in feeds.values():
+        for tid, title in ai_topic_ids(parse_discourse_json(html)):
             seen_ids.setdefault(tid, title)
+    topics = list(seen_ids.items())[:max_topics]
+    # Topic pages: one browser for all of them.
+    pages = await render_stealth_many([f"{BASE}/t/{tid}.json" for tid, _ in topics])
     out: list[Candidate] = []
-    # Sequential: camoufox is heavy; concurrent instances are unreliable.
-    for tid, title in list(seen_ids.items())[:max_topics]:
-        tj = await _render_json(render, f"{BASE}/t/{tid}.json")
+    for (tid, title) in topics:
+        tj = parse_discourse_json(pages.get(f"{BASE}/t/{tid}.json", ""))
         if tj:
             out.extend(extract_topic_links(tj, title))
     return dedup_by_domain(out)

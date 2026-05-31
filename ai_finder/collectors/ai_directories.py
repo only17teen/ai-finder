@@ -128,6 +128,8 @@ async def fetch_candidates(sources: list[str] | None = None,
     `max_details` bounds how many detail pages are rendered per source.
     """
     sources = sources or SOURCES
+    from ..browser import render_stealth_many
+    from ._base import dedup_by_domain
     out: list[Candidate] = []
     for url in sources:
         html = await render(url)
@@ -135,16 +137,17 @@ async def fetch_candidates(sources: list[str] | None = None,
             continue
         # Fast pass: direct outbound links on the listing.
         out.extend(extract_candidates(html, url))
-        # Deep pass: render per-tool detail pages sequentially (camoufox is
-        # heavy; concurrent stealth instances are unreliable).
-        for detail_url in extract_detail_links(html, url)[:max_details]:
-            dhtml = await render(detail_url)
+        # Deep pass: render detail pages reusing ONE browser (much faster than
+        # a launch per page).
+        details = extract_detail_links(html, url)[:max_details]
+        rendered = await render_stealth_many(details)
+        for detail_url in details:
+            dhtml = rendered.get(detail_url, "")
             if not dhtml:
                 continue
             c = extract_outbound(dhtml, detail_url)
             if c and c.domain:
                 out.append(c)
-    from ._base import dedup_by_domain
     return dedup_by_domain(out)
 
 
