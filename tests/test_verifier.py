@@ -133,11 +133,20 @@ def test_verify_services_batch(tmp_path, monkeypatch):
         return {u: (FULL if "geekai" in u else "") for u in urls}
     monkeypatch.setattr("ai_finder.browser.render_many", fake_render_many)
 
+    stealth_calls = []
+
+    async def fake_stealth_many(urls, *a, **k):
+        stealth_calls.append(list(urls))
+        return {u: "" for u in urls}  # still blocked
+    monkeypatch.setattr("ai_finder.browser.render_stealth_many", fake_stealth_many)
+
     n = asyncio.run(verify_services_batch(db, [good, dead]))
     assert n == 2
     assert db.get(good)["status"] == "verified"
     assert db.get(good)["has_api"] == 1
     assert db.get(dead)["status"] == "unreachable"
+    # stealth retried only the blocked (dead) URL, not the good one
+    assert stealth_calls == [["https://dead.example"]]
     db.close()
 
 

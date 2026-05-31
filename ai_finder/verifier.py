@@ -264,11 +264,16 @@ async def verify_services_batch(db: DB, service_ids: list[int],
     Renders all target URLs in a single browser instance (big speedup over
     one browser per site), then analyzes + persists each.
     """
-    from .browser import render_many
+    from .browser import render_many, render_stealth_many
     rows = [db.get(sid) for sid in service_ids]
     rows = [r for r in rows if r]
     urls = {r["id"]: _row_url(r) for r in rows}
     html_by_url = await render_many(list(urls.values()), concurrency=concurrency)
+    # Stealth retry for sites plain render couldn't fetch (Cloudflare etc.),
+    # batched into one shared stealth browser.
+    blocked = [u for u in urls.values() if not html_by_url.get(u)]
+    if blocked:
+        html_by_url.update(await render_stealth_many(blocked))
     for r in rows:
         html = html_by_url.get(urls[r["id"]], "")
         findings = analyze_html(html, urls[r["id"]]) if html else {}
