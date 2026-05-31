@@ -124,6 +124,7 @@ def test_verify_service_unreachable(tmp_path, monkeypatch):
     async def fake_render(url, *a, **k):
         return ""
     monkeypatch.setattr("ai_finder.verifier.render", fake_render)
+    monkeypatch.setattr("ai_finder.browser.render_stealth", fake_render)
 
     asyncio.run(verify_service(db, sid))
     assert db.get(sid)["status"] == "unreachable"
