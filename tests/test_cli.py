@@ -246,14 +246,15 @@ def test_cmd_run_uses_verify_config(tmp_path, monkeypatch):
 
     captured = {}
 
-    async def fake_verify_pending(db_, concurrency, retry_cooldown_h):
+    async def fake_verify_pending(db_, concurrency, retry_cooldown_h, max_verify):
         captured["concurrency"] = concurrency
         captured["cooldown"] = retry_cooldown_h
+        captured["max_verify"] = max_verify
         return 0
     monkeypatch.setattr(cli, "_verify_pending", fake_verify_pending)
 
     asyncio.run(cli.cmd_run(db, cfg, only=None))
-    assert captured == {"concurrency": 3, "cooldown": 12.0}
+    assert captured == {"concurrency": 3, "cooldown": 12.0, "max_verify": 100}
     db.close()
 
 
