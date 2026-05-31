@@ -84,8 +84,12 @@ async def _stealth_page(browser, url: str, wait: str, timeout: int) -> str:
     page = await browser.new_page()
     try:
         await page.goto(url, wait_until=wait, timeout=timeout)
-        await page.wait_for_timeout(2500)  # let Cloudflare's JS challenge resolve
-        return await page.content()
+        html = await page.content()
+        # Only pay the challenge-wait when a Cloudflare interstitial is shown.
+        if "just a moment" in html.lower() or "cf-browser-verification" in html.lower():
+            await page.wait_for_timeout(2500)
+            html = await page.content()
+        return html
     except Exception:
         return ""
     finally:
@@ -110,8 +114,8 @@ async def render_stealth(url: str, wait: str = "domcontentloaded",
 
 async def render_stealth_many(urls: list[str], wait: str = "domcontentloaded",
                               timeout: int = 35000) -> dict[str, str]:
-    """Render many URLs reusing ONE Camoufox browser (sequential). Returns
-    {url: html} ('' on fail). Avoids the per-URL browser-launch cost."""
+    """Render many URLs reusing ONE Camoufox browser (sequential — parallel
+    pages in one camoufox instance are unstable). Returns {url: html}."""
     if not urls:
         return {}
     try:
