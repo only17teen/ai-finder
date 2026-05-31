@@ -80,8 +80,8 @@ async def render_many(urls: list[str], concurrency: int = 6,
     return results
 
 
-async def _stealth_page(browser, url: str, wait: str, timeout: int) -> str:
-    page = await browser.new_page()
+async def _stealth_page(ctx, url: str, wait: str, timeout: int) -> str:
+    page = await ctx.new_page()
     try:
         await page.goto(url, wait_until=wait, timeout=timeout)
         html = await page.content()
@@ -114,8 +114,9 @@ async def render_stealth(url: str, wait: str = "domcontentloaded",
 
 async def render_stealth_many(urls: list[str], wait: str = "domcontentloaded",
                               timeout: int = 35000) -> dict[str, str]:
-    """Render many URLs reusing ONE Camoufox browser (sequential — parallel
-    pages in one camoufox instance are unstable). Returns {url: html}."""
+    """Render many URLs reusing ONE Camoufox browser AND one context, so a
+    Cloudflare clearance cookie solved on the first same-domain page is reused
+    by the rest (sequential — parallel pages in camoufox are unstable)."""
     if not urls:
         return {}
     try:
@@ -125,8 +126,12 @@ async def render_stealth_many(urls: list[str], wait: str = "domcontentloaded",
     results: dict[str, str] = {}
     try:
         async with AsyncCamoufox(headless=True, humanize=True) as browser:
-            for u in urls:
-                results[u] = await _stealth_page(browser, u, wait, timeout)
+            ctx = await browser.new_context()
+            try:
+                for u in urls:
+                    results[u] = await _stealth_page(ctx, u, wait, timeout)
+            finally:
+                await ctx.close()
     except Exception:
         pass
     return {u: results.get(u, "") for u in urls}
