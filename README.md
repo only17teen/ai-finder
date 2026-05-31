@@ -55,6 +55,8 @@ python -m venv .venv && . .venv/bin/activate
 pip install -e .
 python -m playwright install chromium     # for JS-rendered sites
 pip install -e ".[stealth]" && python -m camoufox fetch  # Cloudflare-walled sites
+pip install -e ".[apify]"                 # optional: ProductHunt/IndieHackers
+pip install -e ".[telegram]"              # optional: public Telegram channels
 cp config.toml.example config.toml        # then edit / set env vars
 
 python -m ai_finder.main run              # full pipeline (all enabled sources)
