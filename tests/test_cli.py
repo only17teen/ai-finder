@@ -281,3 +281,24 @@ def test_cmd_open_calls_browser(tmp_path, monkeypatch, capsys):
     cli.cmd_open(db, limit=5)
     assert opened == ["https://a.ai/aff"]
     db.close()
+
+
+def test_verify_pending_caps_at_max(tmp_path, monkeypatch):
+    import asyncio
+
+    from ai_finder import pipeline
+    from ai_finder import verifier as v
+    db = DB(tmp_path / "t.db")
+    for i in range(5):
+        db.upsert_candidate(Candidate(url=f"https://s{i}.ai", source_platform="hn"))
+
+    captured = {}
+
+    async def fake_batch(db_, ids, concurrency=6):
+        captured["n"] = len(ids)
+        return len(ids)
+    monkeypatch.setattr(v, "verify_services_batch", fake_batch)
+
+    asyncio.run(pipeline.verify_pending(db, max_verify=2))
+    assert captured["n"] == 2   # only 2 of 5 pending verified this run
+    db.close()

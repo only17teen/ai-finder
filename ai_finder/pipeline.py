@@ -82,16 +82,19 @@ async def collect(db: DB, cfg: dict, only: str | None) -> int:
 
 
 async def verify_pending(db: DB, concurrency: int = 6,
-                         retry_cooldown_h: float = 24.0) -> int:
+                         retry_cooldown_h: float = 24.0,
+                         max_verify: int = 100) -> int:
     """Verify pending services + retry unreachable ones past the cooldown.
 
     Transient failures (timeouts, blips) shouldn't strand a service forever, so
     `unreachable` entries older than `retry_cooldown_h` hours get another shot.
+    Caps each run at `max_verify` sites (leftovers stay pending for next run) so
+    a big collection batch can't make a single run take unbounded time.
     """
     due = list(db.by_status("pending"))
     if retry_cooldown_h > 0:
         due += db.stale_unreachable(retry_cooldown_h * 3600)
     if not due:
         return 0
-    ids = [r["id"] for r in due]
+    ids = [r["id"] for r in due][:max_verify]
     return await verifier.verify_services_batch(db, ids, concurrency=concurrency)

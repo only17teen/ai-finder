@@ -33,6 +33,7 @@ max_retries = 3
 [verify]
 concurrency = 6          # parallel site verifications (one shared browser)
 retry_cooldown_h = 24.0  # re-try 'unreachable' services older than this (hours)
+max_verify = 100         # cap sites verified per run (leftovers wait for next run)
 
 [notify]
 threshold = 50           # min score to push a Telegram alert

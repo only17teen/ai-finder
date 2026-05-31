@@ -45,6 +45,7 @@ async def cmd_run(db: DB, cfg: dict, only: str | None) -> None:
         db,
         concurrency=int(vcfg.get("concurrency", 6)),
         retry_cooldown_h=float(vcfg.get("retry_cooldown_h", 24.0)),
+        max_verify=int(vcfg.get("max_verify", 100)),
     )
     print(f"Verified:  {checked} sites")
     scorer.rescore_all(db)
