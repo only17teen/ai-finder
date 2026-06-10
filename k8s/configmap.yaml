@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-finder-config
+  namespace: ai-finder
+data:
+  LOG_LEVEL: "INFO"
+  DB_PATH: "/data/ai_finder.db"
+  MAX_CONCURRENT_SCRAPERS: "5"
+  LOOP_WARN_MS: "50"
+  LOOP_CRITICAL_MS: "100"
