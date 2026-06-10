@@ -4,6 +4,7 @@ These developer communities discuss niche AI tools long before they reach
 Western directories. All expose clean JSON APIs. We pull AI-related posts and
 extract external links from their bodies. Pure helpers are unit-tested.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -20,10 +21,19 @@ QIITA_API = "https://qiita.com/api/v2/items?query=AI&per_page=40"
 ZENN_API = "https://zenn.dev/api/articles?topicname=ai&order=latest"
 
 _EXTRA_NOISE = {
-    "v2ex.com", "qiita.com", "zenn.dev", "i.imgur.com", "imgur.com",
-    "camo.qiitausercontent.com", "qiita-user-contents.imgix.net",
-    "i.ibb.co", "ibb.co", "amazonaws.com", "qiita-image-store.s3.ap-northeast-1.amazonaws.com",
-    "bilibili.com", "githubusercontent.com",
+    "v2ex.com",
+    "qiita.com",
+    "zenn.dev",
+    "i.imgur.com",
+    "imgur.com",
+    "camo.qiitausercontent.com",
+    "qiita-user-contents.imgix.net",
+    "i.ibb.co",
+    "ibb.co",
+    "amazonaws.com",
+    "qiita-image-store.s3.ap-northeast-1.amazonaws.com",
+    "bilibili.com",
+    "githubusercontent.com",
 }
 
 # Image/asset extensions — never a service homepage.
@@ -50,15 +60,22 @@ def extract_from_text(title: str, body: str, upvotes: int = 0) -> list[Candidate
         if _skip(dom) or dom in seen:
             continue
         seen.add(dom)
-        out.append(Candidate(url=url, name=(title or dom)[:80],
-                             description=title[:160],
-                             source_platform=PLATFORM, upvotes=upvotes))
+        out.append(
+            Candidate(
+                url=url,
+                name=(title or dom)[:80],
+                description=title[:160],
+                source_platform=PLATFORM,
+                upvotes=upvotes,
+            )
+        )
     return out
 
 
 async def fetch_candidates() -> list[Candidate]:
     from ..net import RateLimiter
     from ..net import fetch as _f
+
     limiter = RateLimiter(per_domain_delay=1.0)
     out: list[Candidate] = []
     async with httpx_client() as client:
@@ -70,45 +87,51 @@ async def fetch_candidates() -> list[Candidate]:
     if rv:
         try:
             for t in rv.json():
-                out += extract_from_text(t.get("title", ""),
-                                         t.get("content", ""),
-                                         int(t.get("replies") or 0))
+                out += extract_from_text(
+                    t.get("title", ""), t.get("content", ""), int(t.get("replies") or 0)
+                )
         except Exception:
             pass
     if rq:
         try:
             for a in rq.json():
-                out += extract_from_text(a.get("title", ""), a.get("body", ""),
-                                         int(a.get("likes_count") or 0))
+                out += extract_from_text(
+                    a.get("title", ""), a.get("body", ""), int(a.get("likes_count") or 0)
+                )
         except Exception:
             pass
     if rz:
         try:
             for a in rz.json().get("articles", []):
                 # Zenn bodies aren't in the list API; use title only.
-                out += extract_from_text(a.get("title", ""), "",
-                                         int(a.get("liked_count") or 0))
+                out += extract_from_text(a.get("title", ""), "", int(a.get("liked_count") or 0))
         except Exception:
             pass
     from ._base import dedup_by_domain
+
     return dedup_by_domain(out, prefer_higher_upvotes=True)
 
 
 def httpx_client():
     import httpx
-    return httpx.AsyncClient(follow_redirects=True,
-                             headers={"User-Agent": "Mozilla/5.0 (ai-finder)"})
+
+    return httpx.AsyncClient(
+        follow_redirects=True, headers={"User-Agent": "Mozilla/5.0 (ai-finder)"}
+    )
 
 
 async def collect(db: DB) -> int:
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates())
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates()
         print(f"Found {len(cands)} Asian-dev AI candidates (V2EX/Qiita/Zenn):")
         for c in cands[:30]:
             print(f"  [{c.upvotes:>4}] {c.domain:<30} {c.name[:40]}")
+
     asyncio.run(_main())

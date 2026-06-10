@@ -4,6 +4,7 @@
 ``extractor(html, url) -> list[Candidate]`` over each, and dedup by domain — so
 adding a server-rendered source is just a SOURCES list + an extractor.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -38,6 +39,7 @@ async def html_collect(
     Cloudflare-walled sources.
     """
     from ..net import fetch_all
+
     htmls: dict[str, str] = {}
     responses = await fetch_all(sources)
     for url, r in zip(sources, responses):
@@ -45,6 +47,7 @@ async def html_collect(
             htmls[url] = r.text
         elif stealth_fallback:
             from ..browser import render_stealth
+
             htmls[url] = await render_stealth(url)
     out: list[Candidate] = []
     for url, html in htmls.items():

@@ -4,6 +4,7 @@ Lemmy instances host self-hosted/FOSS communities the mainstream crowd ignores;
 their JSON API exposes post URLs. dev.to has a clean articles API tagged 'ai'.
 Both JSON — fast, no browser. Mapping helpers are pure and unit-tested.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -16,10 +17,15 @@ from ..keywords import is_ai_related
 PLATFORM = "forums"
 
 # Lemmy instances (federated). Public search API, no auth.
-LEMMY_INSTANCES = ["lemmy.world", "programming.dev", "lemmy.ml",
-                   "lemmy.dbzer0.com", "sh.itjust.works", "feddit.org"]
-LEMMY_SEARCH = ("https://{inst}/api/v3/search"
-                "?q=AI&type_=Posts&sort=New&limit=40")
+LEMMY_INSTANCES = [
+    "lemmy.world",
+    "programming.dev",
+    "lemmy.ml",
+    "lemmy.dbzer0.com",
+    "sh.itjust.works",
+    "feddit.org",
+]
+LEMMY_SEARCH = "https://{inst}/api/v3/search?q=AI&type_=Posts&sort=New&limit=40"
 
 DEVTO_API = "https://dev.to/api/articles?tag=ai&per_page=60"
 
@@ -35,8 +41,9 @@ def lemmy_post_to_candidate(post_view: dict) -> Candidate | None:
     counts = post_view.get("counts", {})
     if isinstance(counts, dict):
         score = int(counts.get("score") or 0)
-    c = Candidate(url=url, name=name[:80], description=name[:160],
-                  source_platform=PLATFORM, upvotes=score)
+    c = Candidate(
+        url=url, name=name[:80], description=name[:160], source_platform=PLATFORM, upvotes=score
+    )
     return c if c.domain and not is_noise_domain(c.domain) else None
 
 
@@ -46,10 +53,13 @@ def devto_article_to_candidate(art: dict) -> Candidate | None:
     title = art.get("title", "")
     if not url:
         return None
-    c = Candidate(url=url, name=title[:80],
-                  description=(art.get("description") or "")[:160],
-                  source_platform=PLATFORM,
-                  upvotes=int(art.get("positive_reactions_count") or 0))
+    c = Candidate(
+        url=url,
+        name=title[:80],
+        description=(art.get("description") or "")[:160],
+        source_platform=PLATFORM,
+        upvotes=int(art.get("positive_reactions_count") or 0),
+    )
     # dev.to canonical often points back to dev.to — drop those + noise.
     if not c.domain or c.domain == "dev.to" or is_noise_domain(c.domain):
         return None
@@ -60,13 +70,13 @@ def devto_article_to_candidate(art: dict) -> Candidate | None:
 
 async def fetch_candidates() -> list[Candidate]:
     from ..net import RateLimiter, fetch
+
     limiter = RateLimiter(per_domain_delay=1.0)
     out: list[Candidate] = []
     async with httpx.AsyncClient(follow_redirects=True) as client:
         # All instances + dev.to fetched concurrently.
         urls = [LEMMY_SEARCH.format(inst=i) for i in LEMMY_INSTANCES] + [DEVTO_API]
-        responses = await asyncio.gather(
-            *[fetch(client, u, limiter=limiter) for u in urls])
+        responses = await asyncio.gather(*[fetch(client, u, limiter=limiter) for u in urls])
     for url, r in zip(urls, responses):
         if not r:
             continue
@@ -85,18 +95,22 @@ async def fetch_candidates() -> list[Candidate]:
                 if c:
                     out.append(c)
     from ._base import dedup_by_domain
+
     return dedup_by_domain(out, prefer_higher_upvotes=True)
 
 
 async def collect(db: DB) -> int:
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates())
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates()
         print(f"Found {len(cands)} forum AI candidates (Lemmy + dev.to):")
         for c in cands[:30]:
             print(f"  [{c.upvotes:>4}] {c.domain:<30} {c.name[:40]}")
+
     asyncio.run(_main())

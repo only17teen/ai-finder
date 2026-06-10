@@ -1,4 +1,5 @@
 """Guard against drift between DEFAULTS, config.toml.example, and SOURCE_NAMES."""
+
 import tomllib
 from pathlib import Path
 

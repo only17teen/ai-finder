@@ -1,4 +1,5 @@
 """Tests for browser stealth batch helper (no real browser launch)."""
+
 import asyncio
 import sys
 

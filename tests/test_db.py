@@ -1,4 +1,5 @@
 """Tests for db module."""
+
 import pytest
 
 from ai_finder.db import DB, Candidate, domain_of
@@ -39,10 +40,11 @@ def test_domain_of_strips_common_subdomains():
 
 def test_dedup_collapses_subdomain_variants(db):
     a, new_a = db.upsert_candidate(
-        Candidate(url="https://klingai.com", source_platform="hn", upvotes=5))
+        Candidate(url="https://klingai.com", source_platform="hn", upvotes=5)
+    )
     b, new_b = db.upsert_candidate(
-        Candidate(url="https://app.klingai.com/create", source_platform="ph",
-                  upvotes=20))
+        Candidate(url="https://app.klingai.com/create", source_platform="ph", upvotes=20)
+    )
     assert a == b and new_a is True and new_b is False
     row = db.get(a)
     assert row["upvotes"] == 20
@@ -50,14 +52,14 @@ def test_dedup_collapses_subdomain_variants(db):
 
 
 def test_schema_created(db):
-    tables = {r[0] for r in db.conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'")}
+    tables = {r[0] for r in db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"services", "sources_log", "tags", "service_history"} <= tables
 
 
 def test_insert_and_read(db):
     sid, new = db.upsert_candidate(
-        Candidate(url="https://geekai.co", name="GeekAI", source_platform="hn"))
+        Candidate(url="https://geekai.co", name="GeekAI", source_platform="hn")
+    )
     assert new is True
     row = db.get(sid)
     assert row["domain"] == "geekai.co"
@@ -67,10 +69,11 @@ def test_insert_and_read(db):
 
 def test_dedup_by_domain(db):
     sid1, new1 = db.upsert_candidate(
-        Candidate(url="https://geekai.co/a", source_platform="hn", upvotes=10))
+        Candidate(url="https://geekai.co/a", source_platform="hn", upvotes=10)
+    )
     sid2, new2 = db.upsert_candidate(
-        Candidate(url="https://www.geekai.co/b", source_platform="ph",
-                  upvotes=50))
+        Candidate(url="https://www.geekai.co/b", source_platform="ph", upvotes=50)
+    )
     assert sid1 == sid2
     assert new1 is True and new2 is False
     row = db.get(sid1)
@@ -79,24 +82,24 @@ def test_dedup_by_domain(db):
 
 
 def test_update_and_tags(db):
-    sid, _ = db.upsert_candidate(
-        Candidate(url="https://x.ai", source_platform="hn"))
+    sid, _ = db.upsert_candidate(Candidate(url="https://x.ai", source_platform="hn"))
     db.update_service(sid, has_api=1, status="verified", score=55)
     db.add_tag(sid, "code")
     db.add_tag(sid, "code")  # idempotent
     row = db.get(sid)
     assert row["has_api"] == 1 and row["status"] == "verified"
-    tags = [r["tag"] for r in db.conn.execute(
-        "SELECT tag FROM tags WHERE service_id=?", (sid,))]
+    tags = [r["tag"] for r in db.conn.execute("SELECT tag FROM tags WHERE service_id=?", (sid,))]
     assert tags == ["code"]
 
 
 def test_search(db):
-    a, _ = db.upsert_candidate(Candidate(url="https://imagegen.ai",
-                                         name="ImageGen", source_platform="hn"))
+    a, _ = db.upsert_candidate(
+        Candidate(url="https://imagegen.ai", name="ImageGen", source_platform="hn")
+    )
     db.update_service(a, category="image", score=70, description="AI art tool")
-    b, _ = db.upsert_candidate(Candidate(url="https://codehelper.dev",
-                                         name="CodeHelper", source_platform="hn"))
+    b, _ = db.upsert_candidate(
+        Candidate(url="https://codehelper.dev", name="CodeHelper", source_platform="hn")
+    )
     db.update_service(b, category="code", score=30, description="coding agent")
 
     assert {r["domain"] for r in db.search(keyword="image")} == {"imagegen.ai"}
@@ -123,16 +126,19 @@ def test_delete_services(db):
     assert removed == 1
     assert db.get(d) is None
     assert db.get(a) is not None
-    assert db.conn.execute(
-        "SELECT COUNT(*) FROM tags WHERE service_id=?", (d,)).fetchone()[0] == 0
-    assert db.conn.execute(
-        "SELECT COUNT(*) FROM service_history WHERE service_id=?",
-        (d,)).fetchone()[0] == 0
+    assert db.conn.execute("SELECT COUNT(*) FROM tags WHERE service_id=?", (d,)).fetchone()[0] == 0
+    assert (
+        db.conn.execute("SELECT COUNT(*) FROM service_history WHERE service_id=?", (d,)).fetchone()[
+            0
+        ]
+        == 0
+    )
     assert db.delete_services("unreachable") == 0
 
 
 def test_stale_unreachable(db):
     import time
+
     now = time.time()
     old, _ = db.upsert_candidate(Candidate(url="https://old.ai", source_platform="hn"))
     db.update_service(old, status="unreachable", last_checked=now - 100000)
@@ -178,22 +184,22 @@ def test_get_history(db):
 
 
 def test_upsert_candidates_batch(db):
-    cands = [Candidate(url="https://a.ai", source_platform="x"),
-             Candidate(url="https://b.ai", source_platform="y"),
-             Candidate(url="https://github.com/x", source_platform="z"),  # noise
-             Candidate(url="https://a.ai/dup", source_platform="w")]      # dup
+    cands = [
+        Candidate(url="https://a.ai", source_platform="x"),
+        Candidate(url="https://b.ai", source_platform="y"),
+        Candidate(url="https://github.com/x", source_platform="z"),  # noise
+        Candidate(url="https://a.ai/dup", source_platform="w"),
+    ]  # dup
     new = db.upsert_candidates(cands)
     assert new == 2  # a.ai, b.ai (noise skipped, dup merged)
     assert db.stats()["total"] == 2
-    row = db.conn.execute(
-        "SELECT platforms FROM services WHERE domain='a.ai'").fetchone()
+    row = db.conn.execute("SELECT platforms FROM services WHERE domain='a.ai'").fetchone()
     assert "x" in row["platforms"] and "w" in row["platforms"]
 
 
 def test_stats(db):
     db.upsert_candidate(Candidate(url="https://a.com", source_platform="hn"))
-    sid, _ = db.upsert_candidate(
-        Candidate(url="https://b.com", source_platform="hn"))
+    sid, _ = db.upsert_candidate(Candidate(url="https://b.com", source_platform="hn"))
     db.update_service(sid, has_api=1, status="verified")
     s = db.stats()
     assert s["total"] == 2 and s["with_api"] == 1 and s["verified"] == 1

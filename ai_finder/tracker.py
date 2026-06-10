@@ -4,6 +4,7 @@ Re-verifies previously discovered services, detects meaningful changes
 (referral terms, API availability, going dead), and records them in
 service_history. `diff_fields` is pure and unit-tested.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -59,16 +60,20 @@ async def recheck_service(db: DB, service_id: int) -> list[tuple]:
     return changes
 
 
-async def recheck_all(db: DB, only_verified: bool = True,
-                      max_age_days: float = 7.0, concurrency: int = 6) -> dict:
+async def recheck_all(
+    db: DB, only_verified: bool = True, max_age_days: float = 7.0, concurrency: int = 6
+) -> dict:
     """Re-verify stored services older than `max_age_days`.
 
     Returns {domain: changes} for services whose tracked fields changed.
     Recently-checked services are skipped to save time/bandwidth.
     """
-    rows = (db.by_status("verified") + db.by_status("notified")) \
-        if only_verified else db.all_services()
-    
+    rows = (
+        (db.by_status("verified") + db.by_status("notified"))
+        if only_verified
+        else db.all_services()
+    )
+
     sem = asyncio.Semaphore(concurrency)
 
     async def _bounded(row):
@@ -81,7 +86,7 @@ async def recheck_all(db: DB, only_verified: bool = True,
         return {}
 
     results = await asyncio.gather(*[_bounded(r) for r in due], return_exceptions=True)
-    
+
     report = {}
     for res in results:
         if isinstance(res, Exception):

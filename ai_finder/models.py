@@ -1,4 +1,5 @@
 """Domain models shared across collectors, storage, and the pipeline."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -9,6 +10,7 @@ from .urls import domain_of
 @dataclass
 class Candidate:
     """A discovered service candidate before verification."""
+
     url: str
     name: str = ""
     description: str = ""

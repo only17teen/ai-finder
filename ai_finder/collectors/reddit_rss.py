@@ -4,6 +4,7 @@ Niche AI subreddits (LocalLLaMA, selfhosted, StableDiffusion, ...) surface
 brand-new tools daily. We read each subreddit's `new.rss`, extract external
 links from post content, and keep AI-related ones. Pure parser is unit-tested.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,15 +20,26 @@ warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 PLATFORM = "reddit"
 
 SUBREDDITS = [
-    "LocalLLaMA", "selfhosted", "StableDiffusion", "artificial",
-    "MachineLearning", "OpenAI", "ArtificialIntelligence", "ollama",
-    "comfyui", "LLMDevs",
+    "LocalLLaMA",
+    "selfhosted",
+    "StableDiffusion",
+    "artificial",
+    "MachineLearning",
+    "OpenAI",
+    "ArtificialIntelligence",
+    "ollama",
+    "comfyui",
+    "LLMDevs",
 ]
 RSS = "https://www.reddit.com/r/{sub}/new.rss?limit=100"
 
 _ASSET_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".pdf")
 _EXTRA_NOISE = {
-    "reddit.com", "redd.it", "preview.redd.it", "i.redd.it", "v.redd.it",
+    "reddit.com",
+    "redd.it",
+    "preview.redd.it",
+    "i.redd.it",
+    "v.redd.it",
     "external-preview.redd.it",
 }
 
@@ -60,9 +72,14 @@ def extract_from_rss(xml: str) -> list[Candidate]:
             if _skip(dom) or dom in seen:
                 continue
             seen.add(dom)
-            out.append(Candidate(url=href, name=title[:80] or dom,
-                                 description=title[:160],
-                                 source_platform=PLATFORM))
+            out.append(
+                Candidate(
+                    url=href,
+                    name=title[:80] or dom,
+                    description=title[:160],
+                    source_platform=PLATFORM,
+                )
+            )
     return out
 
 
@@ -70,6 +87,7 @@ async def fetch_candidates(subreddits: list[str] | None = None) -> list[Candidat
     import httpx
 
     from ..net import RateLimiter, fetch
+
     subs = subreddits or SUBREDDITS
     limiter = RateLimiter(per_domain_delay=2.0)  # be polite to reddit
     urls = [RSS.format(sub=s) for s in subs]
@@ -77,25 +95,28 @@ async def fetch_candidates(subreddits: list[str] | None = None) -> list[Candidat
         follow_redirects=True,
         headers={"User-Agent": "linux:ai-finder:1.0 (research)"},
     ) as client:
-        responses = await asyncio.gather(
-            *[fetch(client, u, limiter=limiter) for u in urls])
+        responses = await asyncio.gather(*[fetch(client, u, limiter=limiter) for u in urls])
     out: list[Candidate] = []
     for r in responses:
         if r:
             out.extend(extract_from_rss(r.text))
     from ._base import dedup_by_domain
+
     return dedup_by_domain(out)
 
 
 async def collect(db: DB, subreddits: list[str] | None = None) -> int:
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates(subreddits))
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates()
         print(f"Found {len(cands)} Reddit AI candidates:")
         for c in cands[:30]:
             print(f"  {c.domain:<30} {c.name[:42]}")
+
     asyncio.run(_main())

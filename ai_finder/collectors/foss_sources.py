@@ -8,6 +8,7 @@ Mines communities and lists the mainstream AI-tool crowd ignores:
 
 All HTML/JSON — no browser. Parsing helpers are pure and unit-tested.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -21,10 +22,10 @@ PLATFORM = "foss"
 
 # Server-rendered link aggregators (story links point outward).
 HTML_SOURCES = [
-    "https://lobste.rs/t/ai",        # Lobsters AI tag
-    "https://slashdot.org/",         # Slashdot front
+    "https://lobste.rs/t/ai",  # Lobsters AI tag
+    "https://slashdot.org/",  # Slashdot front
     "https://news.ycombinator.com/newest",  # HN brand-new submissions
-    "https://news.ycombinator.com/show",    # Show HN (launches)
+    "https://news.ycombinator.com/show",  # Show HN (launches)
 ]
 
 # Raw awesome-list READMEs (self-hosted / local-LLM ecosystems).
@@ -33,13 +34,19 @@ LIST_SOURCES = [
 ]
 
 # HN Algolia keyword search — recent AI stories with external links.
-ALGOLIA = ("https://hn.algolia.com/api/v1/search_by_date"
-           "?query=AI%20API&tags=story&hitsPerPage=60")
+ALGOLIA = "https://hn.algolia.com/api/v1/search_by_date?query=AI%20API&tags=story&hitsPerPage=60"
 
 _EXTRA_NOISE = {
-    "lobste.rs", "slashdot.org", "news.ycombinator.com", "ycombinator.com",
-    "raw.githubusercontent.com", "githubusercontent.com", "archive.org",
-    "ko-fi.com", "patreon.com", "hn.algolia.com",
+    "lobste.rs",
+    "slashdot.org",
+    "news.ycombinator.com",
+    "ycombinator.com",
+    "raw.githubusercontent.com",
+    "githubusercontent.com",
+    "archive.org",
+    "ko-fi.com",
+    "patreon.com",
+    "hn.algolia.com",
 }
 
 
@@ -67,8 +74,14 @@ def extract_links(html: str, source_url: str) -> list[Candidate]:
         if not (is_ai_related(anchor) or is_ai_related(parent)):
             continue
         seen.add(dom)
-        out.append(Candidate(url=href, name=(anchor or dom)[:80],
-                             description=parent[:160], source_platform=PLATFORM))
+        out.append(
+            Candidate(
+                url=href,
+                name=(anchor or dom)[:80],
+                description=parent[:160],
+                source_platform=PLATFORM,
+            )
+        )
     return out
 
 
@@ -78,9 +91,13 @@ def algolia_hit_to_candidate(hit: dict) -> Candidate | None:
     title = hit.get("title") or ""
     if not url or not is_ai_related(title):
         return None
-    c = Candidate(url=url, name=title[:80], description=title[:160],
-                  source_platform=PLATFORM,
-                  upvotes=int(hit.get("points") or 0))
+    c = Candidate(
+        url=url,
+        name=title[:80],
+        description=title[:160],
+        source_platform=PLATFORM,
+        upvotes=int(hit.get("points") or 0),
+    )
     return c if c.domain and not is_noise_domain(c.domain) else None
 
 
@@ -88,6 +105,7 @@ async def fetch_candidates() -> list[Candidate]:
     import httpx
 
     from ..net import RateLimiter, fetch, fetch_text
+
     html_urls = HTML_SOURCES + LIST_SOURCES
     out: list[Candidate] = []
     limiter = RateLimiter(per_domain_delay=1.0)
@@ -106,18 +124,22 @@ async def fetch_candidates() -> list[Candidate]:
         except Exception:
             pass
     from ._base import dedup_by_domain
+
     return dedup_by_domain(out, prefer_higher_upvotes=True)
 
 
 async def collect(db: DB) -> int:
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates())
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates()
         print(f"Found {len(cands)} FOSS/Linux/self-hosted AI candidates:")
         for c in cands[:30]:
             print(f"  [{c.upvotes:>4}] {c.domain:<30} {c.name[:40]}")
+
     asyncio.run(_main())

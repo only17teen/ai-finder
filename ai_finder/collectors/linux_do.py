@@ -11,6 +11,7 @@ return nothing until a render slips through. For reliable access, point a
 stealth browser / residential proxy at the same JSON endpoints — the parsing
 below is independent of how the HTML was fetched.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -35,10 +36,19 @@ FEEDS = [
 
 # linux.do itself + Chinese netdisks/shorteners are not the AI service.
 _EXTRA_NOISE = {
-    "linux.do", "meta.discourse.org",
-    "pan.baidu.com", "pan.quark.cn", "aliyundrive.com", "alipan.com",
-    "cloud.189.cn", "lanzou.com", "123pan.com", "weiyun.com",
-    "t.me", "telegra.ph", "docs.qq.com",
+    "linux.do",
+    "meta.discourse.org",
+    "pan.baidu.com",
+    "pan.quark.cn",
+    "aliyundrive.com",
+    "alipan.com",
+    "cloud.189.cn",
+    "lanzou.com",
+    "123pan.com",
+    "weiyun.com",
+    "t.me",
+    "telegra.ph",
+    "docs.qq.com",
 }
 _ASSET_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".pdf")
 
@@ -59,14 +69,19 @@ def parse_discourse_json(html: str) -> dict:
 def ai_topic_ids(latest_json: dict) -> list[tuple[int, str]]:
     """Pure: (id, title) of AI-related topics from a latest.json payload."""
     topics = latest_json.get("topic_list", {}).get("topics", [])
-    return [(t["id"], t.get("title", "")) for t in topics
-            if t.get("id") and is_ai_related(t.get("title", ""))]
+    return [
+        (t["id"], t.get("title", ""))
+        for t in topics
+        if t.get("id") and is_ai_related(t.get("title", ""))
+    ]
 
 
 _BARE_DOMAIN_RE = re.compile(
     r"(?<![@\w.])((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
     r"(?:ai|io|app|dev|co|com|net|cn|org|me|sh|gg|so|xyz|tech|tools))"
-    r"(?![\w.])", re.I)
+    r"(?![\w.])",
+    re.I,
+)
 
 
 def _ok_domain(dom: str, seen: set) -> bool:
@@ -95,22 +110,35 @@ def extract_topic_links(topic_json: dict, title: str) -> list[Candidate]:
             if not _ok_domain(dom, seen):
                 continue
             seen.add(dom)
-            out.append(Candidate(url=href, name=title[:80] or dom,
-                                 description=title[:160], source_platform=PLATFORM))
+            out.append(
+                Candidate(
+                    url=href,
+                    name=title[:80] or dom,
+                    description=title[:160],
+                    source_platform=PLATFORM,
+                )
+            )
         # 2) bare-text domains (e.g. "推荐 chyqd.com")
         for m in _BARE_DOMAIN_RE.finditer(soup.get_text(" ")):
             dom = domain_of(m.group(1))
             if not _ok_domain(dom, seen):
                 continue
             seen.add(dom)
-            out.append(Candidate(url=f"https://{dom}", name=title[:80] or dom,
-                                 description=title[:160], source_platform=PLATFORM))
+            out.append(
+                Candidate(
+                    url=f"https://{dom}",
+                    name=title[:80] or dom,
+                    description=title[:160],
+                    source_platform=PLATFORM,
+                )
+            )
     return out
 
 
 async def fetch_candidates(max_topics: int = 15) -> list[Candidate]:
     from ..browser import render_stealth_many
     from ._base import dedup_by_domain
+
     # Feeds: one browser for all of them.
     seen_ids: dict[int, str] = {}
     feeds = await render_stealth_many(FEEDS)
@@ -121,7 +149,7 @@ async def fetch_candidates(max_topics: int = 15) -> list[Candidate]:
     # Topic pages: one browser for all of them.
     pages = await render_stealth_many([f"{BASE}/t/{tid}.json" for tid, _ in topics])
     out: list[Candidate] = []
-    for (tid, title) in topics:
+    for tid, title in topics:
         tj = parse_discourse_json(pages.get(f"{BASE}/t/{tid}.json", ""))
         if tj:
             out.extend(extract_topic_links(tj, title))
@@ -130,13 +158,16 @@ async def fetch_candidates(max_topics: int = 15) -> list[Candidate]:
 
 async def collect(db: DB, max_topics: int = 15) -> int:
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates(max_topics))
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates()
         print(f"Found {len(cands)} linux.do AI-service candidates:")
         for c in cands[:30]:
             print(f"  {c.domain:<30} {c.name[:40]}")
+
     asyncio.run(_main())

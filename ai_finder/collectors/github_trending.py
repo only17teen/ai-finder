@@ -5,6 +5,7 @@ trending page for AI repos, then read each repo page for its homepage link
 (the real product site). Repos with an external homepage are the leads.
 Both parsers are pure and unit-tested.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -45,8 +46,7 @@ def extract_homepage(repo_html: str) -> str:
     """Pure: find a repo's external homepage link, or '' if none/github."""
     soup = BeautifulSoup(repo_html, "html.parser")
     # GitHub marks the homepage link with itemprop="url" in the sidebar.
-    el = soup.find("a", attrs={"itemprop": "url"}) or soup.select_one(
-        'a.text-bold[href^="http"]')
+    el = soup.find("a", attrs={"itemprop": "url"}) or soup.select_one('a.text-bold[href^="http"]')
     href = el.get("href", "") if el else ""
     dom = domain_of(href)
     if not dom or dom == "github.com" or dom.endswith(".github.com"):
@@ -56,6 +56,7 @@ def extract_homepage(repo_html: str) -> str:
 
 async def fetch_candidates(limit: int = 25) -> list[Candidate]:
     from ..net import RateLimiter, fetch
+
     limiter = RateLimiter(per_domain_delay=1.0)
     async with httpx.AsyncClient(follow_redirects=True) as client:
         r = await fetch(client, TRENDING_URL, limiter=limiter)
@@ -76,18 +77,22 @@ async def fetch_candidates(limit: int = 25) -> list[Candidate]:
 
         results = await asyncio.gather(*[_one(r) for r in repos])
     from ._base import dedup_by_domain
+
     return dedup_by_domain([c for c in results if c])
 
 
 async def collect(db: DB, limit: int = 25) -> int:
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates(limit))
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates(25)
         print(f"Found {len(cands)} trending AI repos/sites:")
         for c in cands[:20]:
             print(f"  {c.domain:<30} {c.name[:45]}")
+
     asyncio.run(_main())

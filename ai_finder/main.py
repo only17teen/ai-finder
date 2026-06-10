@@ -8,6 +8,7 @@ Commands:
   status                DB statistics
 Cron-friendly: exit 0 on success, non-zero on error.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -31,10 +32,22 @@ SOURCE_NAMES = pipeline.SOURCE_NAMES
 _collect = pipeline.collect
 _verify_pending = pipeline.verify_pending
 
-EXPORT_COLS = ["domain", "name", "category", "score", "has_api",
-               "api_docs_url", "has_referral", "referral_url",
-               "referral_commission", "affiliate_platform", "pricing_model",
-               "source_url", "platforms", "description"]
+EXPORT_COLS = [
+    "domain",
+    "name",
+    "category",
+    "score",
+    "has_api",
+    "api_docs_url",
+    "has_referral",
+    "referral_url",
+    "referral_commission",
+    "affiliate_platform",
+    "pricing_model",
+    "source_url",
+    "platforms",
+    "description",
+]
 
 
 async def cmd_run(db: DB, cfg: dict, only: str | None) -> None:
@@ -49,7 +62,7 @@ async def cmd_run(db: DB, cfg: dict, only: str | None) -> None:
     )
     print(f"Verified:  {checked} sites")
     scorer.rescore_all(db)
-    
+
     tg = cfg.get("telegram", {})
     token, chat = tg.get("bot_token"), tg.get("chat_id")
     threshold = cfg.get("notify", {}).get("threshold", 50)
@@ -59,7 +72,7 @@ async def cmd_run(db: DB, cfg: dict, only: str | None) -> None:
             print(f"Notified:  {sent} services")
     else:
         log.debug("Telegram not configured, skipping notifications")
-        
+
     print("Stats:", db.stats())
 
 
@@ -68,8 +81,15 @@ async def cmd_verify(url: str) -> None:
     if not f:
         print("unreachable / no HTML")
         return
-    for k in ("name", "has_api", "api_docs_url", "has_referral",
-              "referral_url", "referral_commission", "pricing_model"):
+    for k in (
+        "name",
+        "has_api",
+        "api_docs_url",
+        "has_referral",
+        "referral_url",
+        "referral_commission",
+        "pricing_model",
+    ):
         print(f"  {k:<20} {f.get(k)}")
 
 
@@ -78,24 +98,33 @@ def _rows_to_dicts(rows):
 
 
 def _to_markdown(rows) -> str:
-    cols = ["domain", "name", "category", "score", "has_api",
-            "has_referral", "referral_commission", "referral_url", "api_docs_url"]
-    out = ["| " + " | ".join(cols) + " |",
-           "|" + "|".join("---" for _ in cols) + "|"]
+    cols = [
+        "domain",
+        "name",
+        "category",
+        "score",
+        "has_api",
+        "has_referral",
+        "referral_commission",
+        "referral_url",
+        "api_docs_url",
+    ]
+    out = ["| " + " | ".join(cols) + " |", "|" + "|".join("---" for _ in cols) + "|"]
     for r in rows:
-        cells = [str(r[c] if r[c] is not None else "").replace("|", "\\|")
-                 for c in cols]
+        cells = [str(r[c] if r[c] is not None else "").replace("|", "\\|") for c in cols]
         out.append("| " + " | ".join(cells) + " |")
     return "\n".join(out) + "\n"
 
 
-def cmd_export(db: DB, out: str, min_score: int = 0,
-               require_referral: bool = True, fmt: str = "csv") -> None:
+def cmd_export(
+    db: DB, out: str, min_score: int = 0, require_referral: bool = True, fmt: str = "csv"
+) -> None:
     """Export services to CSV/JSON/Markdown.
 
     Default: those with API *and* referral. `--all` drops the referral
     requirement; `--min-score` filters by score; `--format` picks the writer.
     """
+
     def keep(r) -> bool:
         if (r["score"] or 0) < min_score:
             return False
@@ -123,15 +152,24 @@ def cmd_export(db: DB, out: str, min_score: int = 0,
 def cmd_top(db: DB, limit: int, as_json: bool = False) -> None:
     rows = db.top(limit)
     if as_json:
-        cols = ["domain", "name", "category", "score", "has_api",
-                "has_referral", "referral_commission", "api_docs_url",
-                "referral_url"]
-        print(json.dumps([{c: r[c] for c in cols} for r in rows],
-                         ensure_ascii=False, indent=2))
+        cols = [
+            "domain",
+            "name",
+            "category",
+            "score",
+            "has_api",
+            "has_referral",
+            "referral_commission",
+            "api_docs_url",
+            "referral_url",
+        ]
+        print(json.dumps([{c: r[c] for c in cols} for r in rows], ensure_ascii=False, indent=2))
         return
     for r in rows:
-        print(f"  [{r['score']:>3}] {r['category'] or '-':<11} "
-              f"{r['domain']:<30} api={r['has_api']} ref={r['has_referral']}")
+        print(
+            f"  [{r['score']:>3}] {r['category'] or '-':<11} "
+            f"{r['domain']:<30} api={r['has_api']} ref={r['has_referral']}"
+        )
 
 
 def cmd_status(db: DB, as_json: bool = False) -> None:
@@ -139,8 +177,10 @@ def cmd_status(db: DB, as_json: bool = False) -> None:
     if as_json:
         print(json.dumps(s, indent=2))
         return
-    print(f"total={s['total']} pending={s['pending']} verified={s['verified']} "
-          f"with_api={s['with_api']} with_referral={s['with_referral']}")
+    print(
+        f"total={s['total']} pending={s['pending']} verified={s['verified']} "
+        f"with_api={s['with_api']} with_referral={s['with_referral']}"
+    )
 
 
 def cmd_sources(cfg: dict) -> None:
@@ -166,12 +206,18 @@ def cmd_report(db: DB, as_json: bool = False) -> None:
         print("No collector runs logged yet.")
         return
     from datetime import datetime, timezone
+
     print(f"{'source':<16} {'runs':>5} {'cand':>7} {'new':>6}  last_run")
     for r in rows:
-        last = datetime.fromtimestamp(r["last_run"], timezone.utc).strftime(
-            "%Y-%m-%d %H:%M") if r["last_run"] else "-"
-        print(f"{r['source']:<16} {r['runs']:>5} {r['candidates'] or 0:>7} "
-              f"{r['new_services'] or 0:>6}  {last}")
+        last = (
+            datetime.fromtimestamp(r["last_run"], timezone.utc).strftime("%Y-%m-%d %H:%M")
+            if r["last_run"]
+            else "-"
+        )
+        print(
+            f"{r['source']:<16} {r['runs']:>5} {r['candidates'] or 0:>7} "
+            f"{r['new_services'] or 0:>6}  {last}"
+        )
 
 
 def monetizable_referral_urls(db: DB, limit: int) -> list[str]:
@@ -191,6 +237,7 @@ def monetizable_referral_urls(db: DB, limit: int) -> list[str]:
 def cmd_open(db: DB, limit: int) -> None:
     """Open top monetizable referral URLs in the default browser."""
     import webbrowser
+
     urls = monetizable_referral_urls(db, limit)
     if not urls:
         print("No referral URLs to open (run + verify first).")
@@ -222,13 +269,13 @@ def cmd_history(db: DB, domain: str) -> None:
     from datetime import datetime, timezone
 
     from .db import domain_of
+
     rows = db.get_history(domain_of(domain))
     if not rows:
         print(f"No recorded changes for {domain}.")
         return
     for r in rows:
-        ts = datetime.fromtimestamp(r["changed_at"], timezone.utc).strftime(
-            "%Y-%m-%d %H:%M")
+        ts = datetime.fromtimestamp(r["changed_at"], timezone.utc).strftime("%Y-%m-%d %H:%M")
         print(f"  {ts}  {r['field']}: {r['old_value']} -> {r['new_value']}")
 
 
@@ -243,8 +290,7 @@ async def cmd_digest(db: DB, cfg: dict, limit: int) -> None:
 
 
 async def cmd_recheck(db: DB, max_age_days: float, only_verified: bool) -> None:
-    report = await tracker.recheck_all(
-        db, only_verified=only_verified, max_age_days=max_age_days)
+    report = await tracker.recheck_all(db, only_verified=only_verified, max_age_days=max_age_days)
     if not report:
         print("No changes detected.")
         return
@@ -254,23 +300,40 @@ async def cmd_recheck(db: DB, max_age_days: float, only_verified: bool) -> None:
             print(f"  {field}: {ov} -> {nv}")
 
 
-def cmd_search(db: DB, keyword: str, category: str, min_score: int,
-               limit: int, platform: str = "", as_json: bool = False) -> None:
-    rows = db.search(keyword=keyword, category=category, min_score=min_score,
-                     platform=platform, limit=limit)
+def cmd_search(
+    db: DB,
+    keyword: str,
+    category: str,
+    min_score: int,
+    limit: int,
+    platform: str = "",
+    as_json: bool = False,
+) -> None:
+    rows = db.search(
+        keyword=keyword, category=category, min_score=min_score, platform=platform, limit=limit
+    )
     if as_json:
-        cols = ["domain", "name", "category", "score", "has_api",
-                "has_referral", "referral_commission", "api_docs_url",
-                "referral_url"]
-        print(json.dumps([{c: r[c] for c in cols} for r in rows],
-                         ensure_ascii=False, indent=2))
+        cols = [
+            "domain",
+            "name",
+            "category",
+            "score",
+            "has_api",
+            "has_referral",
+            "referral_commission",
+            "api_docs_url",
+            "referral_url",
+        ]
+        print(json.dumps([{c: r[c] for c in cols} for r in rows], ensure_ascii=False, indent=2))
         return
     if not rows:
         print("No matches.")
         return
     for r in rows:
-        print(f"  [{r['score']:>3}] {r['category'] or '-':<11} "
-              f"{r['domain']:<30} api={r['has_api']} ref={r['has_referral']}")
+        print(
+            f"  [{r['score']:>3}] {r['category'] or '-':<11} "
+            f"{r['domain']:<30} api={r['has_api']} ref={r['has_referral']}"
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -279,16 +342,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--verbose", action="store_true")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p_run = sub.add_parser("run")
-    p_run.add_argument("--source", default=None, choices=SOURCE_NAMES,
-                       metavar="NAME", help="one of: " + ", ".join(SOURCE_NAMES))
+    p_run.add_argument(
+        "--source",
+        default=None,
+        choices=SOURCE_NAMES,
+        metavar="NAME",
+        help="one of: " + ", ".join(SOURCE_NAMES),
+    )
     p_ver = sub.add_parser("verify")
     p_ver.add_argument("--url", required=True)
     p_exp = sub.add_parser("export")
     p_exp.add_argument("--out", default=None)
     p_exp.add_argument("--format", choices=["csv", "json", "md"], default="csv")
     p_exp.add_argument("--min-score", type=int, default=0)
-    p_exp.add_argument("--all", action="store_true",
-                       help="include API-only services (drop referral requirement)")
+    p_exp.add_argument(
+        "--all", action="store_true", help="include API-only services (drop referral requirement)"
+    )
     p_top = sub.add_parser("top")
     p_top.add_argument("--limit", type=int, default=20)
     p_top.add_argument("--json", action="store_true")
@@ -299,16 +368,18 @@ def main(argv: list[str] | None = None) -> int:
     p_search.add_argument("--keyword", default="")
     p_search.add_argument("--category", default="")
     p_search.add_argument("--min-score", type=int, default=0)
-    p_search.add_argument("--platform", default="",
-                          help="filter by affiliate platform (e.g. Rewardful)")
+    p_search.add_argument(
+        "--platform", default="", help="filter by affiliate platform (e.g. Rewardful)"
+    )
     p_search.add_argument("--limit", type=int, default=50)
     p_search.add_argument("--json", action="store_true")
     p_prune = sub.add_parser("prune")
     p_prune.add_argument("--status", default="unreachable")
     p_recheck = sub.add_parser("recheck")
     p_recheck.add_argument("--max-age-days", type=float, default=7.0)
-    p_recheck.add_argument("--all", action="store_true",
-                           help="recheck all services, not just verified/notified")
+    p_recheck.add_argument(
+        "--all", action="store_true", help="recheck all services, not just verified/notified"
+    )
     p_hist = sub.add_parser("history")
     p_hist.add_argument("--domain", required=True)
     p_digest = sub.add_parser("digest")
@@ -322,6 +393,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     from .net import setup_logging
+
     setup_logging(verbose=args.verbose)
 
     try:
@@ -338,20 +410,31 @@ def main(argv: list[str] | None = None) -> int:
                 asyncio.run(cmd_run(db, cfg, args.source))
             elif args.cmd == "export":
                 out = args.out or f"ai_services.{args.format}"
-                cmd_export(db, out, min_score=args.min_score,
-                           require_referral=not args.all, fmt=args.format)
+                cmd_export(
+                    db,
+                    out,
+                    min_score=args.min_score,
+                    require_referral=not args.all,
+                    fmt=args.format,
+                )
             elif args.cmd == "top":
                 cmd_top(db, args.limit, as_json=args.json)
             elif args.cmd == "status":
                 cmd_status(db, as_json=args.json)
             elif args.cmd == "search":
-                cmd_search(db, args.keyword, args.category, args.min_score,
-                           args.limit, platform=args.platform, as_json=args.json)
+                cmd_search(
+                    db,
+                    args.keyword,
+                    args.category,
+                    args.min_score,
+                    args.limit,
+                    platform=args.platform,
+                    as_json=args.json,
+                )
             elif args.cmd == "prune":
                 cmd_prune(db, args.status)
             elif args.cmd == "recheck":
-                asyncio.run(cmd_recheck(db, args.max_age_days,
-                                        only_verified=not args.all))
+                asyncio.run(cmd_recheck(db, args.max_age_days, only_verified=not args.all))
             elif args.cmd == "history":
                 cmd_history(db, args.domain)
             elif args.cmd == "digest":

@@ -1,4 +1,5 @@
 """Tests for GitHub trending parsing (pure, no network)."""
+
 from ai_finder.collectors.github_trending import extract_homepage, parse_trending
 
 TRENDING = """

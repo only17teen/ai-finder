@@ -1,4 +1,5 @@
 """Tests for Apify collector item->Candidate mapping (pure, no network)."""
+
 import asyncio
 
 from ai_finder.collectors.apify_sources import (
@@ -9,8 +10,12 @@ from ai_finder.collectors.apify_sources import (
 
 
 def test_maps_producthunt_item():
-    item = {"name": "GeekAI", "website": "https://geekai.co",
-            "tagline": "An LLM gateway API", "votesCount": 120}
+    item = {
+        "name": "GeekAI",
+        "website": "https://geekai.co",
+        "tagline": "An LLM gateway API",
+        "votesCount": 120,
+    }
     c = item_to_candidate(item, PLATFORM_PH)
     assert c is not None
     assert c.domain == "geekai.co"
@@ -20,8 +25,12 @@ def test_maps_producthunt_item():
 
 
 def test_maps_alternate_field_names():
-    item = {"title": "VisionAI", "url": "https://visionai.dev",
-            "summary": "neural image tagging", "points": "42"}
+    item = {
+        "title": "VisionAI",
+        "url": "https://visionai.dev",
+        "summary": "neural image tagging",
+        "points": "42",
+    }
     c = item_to_candidate(item, PLATFORM_PH)
     assert c.domain == "visionai.dev"
     assert c.name == "VisionAI"
@@ -29,8 +38,11 @@ def test_maps_alternate_field_names():
 
 
 def test_skips_non_ai_item():
-    item = {"name": "BudgetBuddy", "website": "https://budget.app",
-            "tagline": "track your spending"}
+    item = {
+        "name": "BudgetBuddy",
+        "website": "https://budget.app",
+        "tagline": "track your spending",
+    }
     assert item_to_candidate(item, PLATFORM_PH) is None
 
 

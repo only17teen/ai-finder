@@ -1,4 +1,5 @@
 """SQLite storage: schema, CRUD, dedup by domain."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -46,7 +47,8 @@ CREATE TABLE IF NOT EXISTS services (
     discovered_at REAL,
     verified_at REAL,
     last_checked REAL,
-    status TEXT DEFAULT 'pending'
+    status TEXT DEFAULT 'pending',
+    tech_stack TEXT DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS sources_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,6 +76,26 @@ CREATE INDEX IF NOT EXISTS idx_services_score ON services(score DESC);
 """
 
 
+class SeenFilter:
+    """Fast in-memory filter for URL discovery deduplication.
+
+    Prevents redundant DB checks for frequently seen domains during high-volume
+    collection runs. Reset periodically to prevent memory bloat.
+    """
+
+    def __init__(self, size: int = 100000):
+        self._set = set()
+        self._max = size
+
+    def is_new(self, domain: str) -> bool:
+        if domain in self._set:
+            return False
+        if len(self._set) >= self._max:
+            self._set.clear()  # reset on overflow
+        self._set.add(domain)
+        return True
+
+
 class DB:
     def __init__(self, path: str | Path = DEFAULT_DB):
         self.path = str(path)
@@ -82,12 +104,16 @@ class DB:
         self.conn.executescript(SCHEMA)
         self._migrate()
         self.conn.commit()
+        self._seen = SeenFilter()
+
+    def check_seen(self, domain: str) -> bool:
+        """Fast check if domain was already seen in this session."""
+        return not self._seen.is_new(domain)
 
     def _migrate(self):
         """Add columns introduced after a DB was first created (idempotent)."""
-        cols = {r["name"] for r in self.conn.execute(
-            "PRAGMA table_info(services)")}
-        for col in ("affiliate_platform",):
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(services)")}
+        for col in ("affiliate_platform", "tech_stack"):
             if col not in cols:
                 self.conn.execute(f"ALTER TABLE services ADD COLUMN {col} TEXT")
 
@@ -114,6 +140,11 @@ class DB:
         Returns (service_id, is_new); (-1, False) if skipped as noise."""
         if not c.domain:
             raise ValueError(f"candidate has no domain: {c.url}")
+
+        # Fast session-level short-circuit
+        if self.check_seen(c.domain) and c.upvotes < 50:
+            return -1, False
+
         if is_noise_domain(c.domain):
             return -1, False  # skip generic/infra hosts
         now = time.time()
@@ -127,8 +158,16 @@ class DB:
                 (domain,name,description,source_url,source_platform,
                  upvotes,platforms,discovered_at,status)
                 VALUES (?,?,?,?,?,?,?,?,'pending')""",
-                (c.domain, c.name, c.description, c.url, c.source_platform,
-                 c.upvotes, c.source_platform, now),
+                (
+                    c.domain,
+                    c.name,
+                    c.description,
+                    c.url,
+                    c.source_platform,
+                    c.upvotes,
+                    c.source_platform,
+                    now,
+                ),
             )
             return cur.lastrowid, True
         # merge: track platforms, keep max upvotes, fill missing fields
@@ -139,8 +178,7 @@ class DB:
                name=COALESCE(NULLIF(name,''),?),
                description=COALESCE(NULLIF(description,''),?)
                WHERE id=?""",
-            (",".join(sorted(platforms)), c.upvotes, c.name,
-             c.description, row["id"]),
+            (",".join(sorted(platforms)), c.upvotes, c.name, c.description, row["id"]),
         )
         return row["id"], False
 
@@ -196,9 +234,7 @@ class DB:
             )
 
     def get(self, service_id: int) -> sqlite3.Row | None:
-        return self.conn.execute(
-            "SELECT * FROM services WHERE id=?", (service_id,)
-        ).fetchone()
+        return self.conn.execute("SELECT * FROM services WHERE id=?", (service_id,)).fetchone()
 
     def by_status(self, status: str, limit: int | None = None) -> list[sqlite3.Row]:
         query = "SELECT * FROM services WHERE status=?"
@@ -208,15 +244,18 @@ class DB:
             params.append(limit)
         return self.conn.execute(query, params).fetchall()
 
-    def stale_unreachable(self, cooldown_seconds: float,
-                          now: float | None = None,
-                          limit: int | None = None) -> list[sqlite3.Row]:
+    def stale_unreachable(
+        self, cooldown_seconds: float, now: float | None = None, limit: int | None = None
+    ) -> list[sqlite3.Row]:
         """Unreachable services last checked longer ago than the cooldown —
         candidates for a retry (transient failures shouldn't be permanent)."""
         import time as _t
+
         cutoff = (now if now is not None else _t.time()) - cooldown_seconds
-        query = ("SELECT * FROM services WHERE status='unreachable' "
-                 "AND (last_checked IS NULL OR last_checked < ?)")
+        query = (
+            "SELECT * FROM services WHERE status='unreachable' "
+            "AND (last_checked IS NULL OR last_checked < ?)"
+        )
         params = [cutoff]
         if limit:
             query += " LIMIT ?"
@@ -246,8 +285,8 @@ class DB:
         """Services with a referral program, best first — the ones you can
         actually earn from. Ordered by score desc."""
         return self.conn.execute(
-            "SELECT * FROM services WHERE has_referral=1 "
-            "ORDER BY score DESC LIMIT ?", (limit,),
+            "SELECT * FROM services WHERE has_referral=1 ORDER BY score DESC LIMIT ?",
+            (limit,),
         ).fetchall()
 
     def get_history(self, domain: str) -> list[sqlite3.Row]:
@@ -255,27 +294,36 @@ class DB:
         return self.conn.execute(
             "SELECT h.changed_at, h.field, h.old_value, h.new_value "
             "FROM service_history h JOIN services s ON s.id = h.service_id "
-            "WHERE s.domain = ? ORDER BY h.changed_at ASC", (domain,),
+            "WHERE s.domain = ? ORDER BY h.changed_at ASC",
+            (domain,),
         ).fetchall()
 
     def delete_services(self, status: str) -> int:
         """Delete services with the given status (+ their tags/history).
         Returns the number of services removed."""
         with self._tx() as conn:
-            ids = [r[0] for r in conn.execute(
-                "SELECT id FROM services WHERE status=?", (status,)).fetchall()]
+            ids = [
+                r[0]
+                for r in conn.execute(
+                    "SELECT id FROM services WHERE status=?", (status,)
+                ).fetchall()
+            ]
             if not ids:
                 return 0
             qmarks = ",".join("?" * len(ids))
             conn.execute(f"DELETE FROM tags WHERE service_id IN ({qmarks})", ids)
-            conn.execute(
-                f"DELETE FROM service_history WHERE service_id IN ({qmarks})", ids)
+            conn.execute(f"DELETE FROM service_history WHERE service_id IN ({qmarks})", ids)
             conn.execute(f"DELETE FROM services WHERE id IN ({qmarks})", ids)
             return len(ids)
 
-    def search(self, keyword: str = "", category: str = "",
-               min_score: int = 0, platform: str = "",
-               limit: int = 50) -> list[sqlite3.Row]:
+    def search(
+        self,
+        keyword: str = "",
+        category: str = "",
+        min_score: int = 0,
+        platform: str = "",
+        limit: int = 50,
+    ) -> list[sqlite3.Row]:
         """Filter services by keyword (domain/name/description), category,
         affiliate platform, and minimum score. Ordered by score desc."""
         clauses, params = ["score >= ?"], [min_score]
@@ -291,23 +339,21 @@ class DB:
             params.append(platform)
         params.append(limit)
         return self.conn.execute(
-            f"SELECT * FROM services WHERE {' AND '.join(clauses)} "
-            f"ORDER BY score DESC LIMIT ?", params,
+            f"SELECT * FROM services WHERE {' AND '.join(clauses)} ORDER BY score DESC LIMIT ?",
+            params,
         ).fetchall()
 
     def stats(self) -> dict:
         c = self.conn
         return {
             "total": c.execute("SELECT COUNT(*) FROM services").fetchone()[0],
-            "pending": c.execute(
-                "SELECT COUNT(*) FROM services WHERE status='pending'"
-            ).fetchone()[0],
+            "pending": c.execute("SELECT COUNT(*) FROM services WHERE status='pending'").fetchone()[
+                0
+            ],
             "verified": c.execute(
                 "SELECT COUNT(*) FROM services WHERE status='verified'"
             ).fetchone()[0],
-            "with_api": c.execute(
-                "SELECT COUNT(*) FROM services WHERE has_api=1"
-            ).fetchone()[0],
+            "with_api": c.execute("SELECT COUNT(*) FROM services WHERE has_api=1").fetchone()[0],
             "with_referral": c.execute(
                 "SELECT COUNT(*) FROM services WHERE has_referral=1"
             ).fetchone()[0],
@@ -317,11 +363,13 @@ class DB:
 if __name__ == "__main__":
     db = DB()
     print(f"DB created at {db.path}")
-    print("Tables:", [r[0] for r in db.conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'")])
+    print(
+        "Tables:",
+        [r[0] for r in db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")],
+    )
     sid, new = db.upsert_candidate(
-        Candidate(url="https://geekai.co", name="GeekAI",
-                  source_platform="demo"))
+        Candidate(url="https://geekai.co", name="GeekAI", source_platform="demo")
+    )
     print(f"Inserted service id={sid} new={new}")
     print("Stats:", db.stats())
     db.close()

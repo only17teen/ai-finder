@@ -1,4 +1,5 @@
 """Tests for Telegram message link extraction (pure, no network)."""
+
 import asyncio
 
 from ai_finder.collectors.telegram_channels import extract_links, fetch_candidates

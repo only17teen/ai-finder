@@ -1,4 +1,5 @@
 """Tests for HackerNews collector + keyword filtering."""
+
 from ai_finder.collectors.hackernews import story_to_candidate
 from ai_finder.keywords import is_ai_related, mentions_api
 
@@ -19,8 +20,10 @@ def test_mentions_api():
 
 def test_story_to_candidate_keeps_ai_external():
     item = {
-        "type": "story", "title": "Show HN: GeekAI - LLM gateway",
-        "url": "https://geekai.co", "score": 42,
+        "type": "story",
+        "title": "Show HN: GeekAI - LLM gateway",
+        "url": "https://geekai.co",
+        "score": 42,
     }
     c = story_to_candidate(item)
     assert c is not None
@@ -31,8 +34,12 @@ def test_story_to_candidate_keeps_ai_external():
 
 
 def test_story_to_candidate_skips_non_ai():
-    item = {"type": "story", "title": "Show HN: Recipe app",
-            "url": "https://recipes.example", "score": 10}
+    item = {
+        "type": "story",
+        "title": "Show HN: Recipe app",
+        "url": "https://recipes.example",
+        "score": 10,
+    }
     assert story_to_candidate(item) is None
 
 

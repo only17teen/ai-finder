@@ -1,4 +1,5 @@
 """Tests for config loading and CLI commands (no network)."""
+
 import csv
 
 from ai_finder import config as cfgmod
@@ -29,10 +30,12 @@ def test_config_file_merge(tmp_path):
 
 def test_export_filters_api_and_referral(tmp_path):
     db = DB(tmp_path / "t.db")
-    good, _ = db.upsert_candidate(Candidate(url="https://good.ai", name="Good",
-                                            source_platform="hn"))
-    db.update_service(good, has_api=1, has_referral=1, score=80,
-                      category="code", referral_commission="30%")
+    good, _ = db.upsert_candidate(
+        Candidate(url="https://good.ai", name="Good", source_platform="hn")
+    )
+    db.update_service(
+        good, has_api=1, has_referral=1, score=80, category="code", referral_commission="30%"
+    )
     bad, _ = db.upsert_candidate(Candidate(url="https://bad.ai", source_platform="hn"))
     db.update_service(bad, has_api=1, has_referral=0)  # no referral -> excluded
     out = tmp_path / "out.csv"
@@ -58,8 +61,7 @@ def test_cli_top_runs(tmp_path, capsys, monkeypatch):
     dbfile = tmp_path / "top.db"
     cfile.write_text(f'db_path = "{dbfile}"\n')
     db = DB(dbfile)
-    sid, _ = db.upsert_candidate(Candidate(url="https://a.ai", name="A",
-                                           source_platform="hn"))
+    sid, _ = db.upsert_candidate(Candidate(url="https://a.ai", name="A", source_platform="hn"))
     db.update_service(sid, score=42, category="code", has_api=1)
     db.close()
     rc = cli.main(["--config", str(cfile), "top", "--limit", "5"])
@@ -70,6 +72,7 @@ def test_cli_top_runs(tmp_path, capsys, monkeypatch):
 def test_collect_isolates_source_failure(tmp_path, monkeypatch):
     """A failing collector must not abort the others; totals still sum."""
     import asyncio
+
     db = DB(tmp_path / "t.db")
     cfg = cfgmod.load(tmp_path / "none.toml")
 
@@ -93,16 +96,13 @@ def test_collect_isolates_source_failure(tmp_path, monkeypatch):
 def test_export_all_and_min_score(tmp_path):
     db = DB(tmp_path / "t.db")
     # api+referral, high score
-    a, _ = db.upsert_candidate(Candidate(url="https://a.ai", name="A",
-                                         source_platform="hn"))
+    a, _ = db.upsert_candidate(Candidate(url="https://a.ai", name="A", source_platform="hn"))
     db.update_service(a, has_api=1, has_referral=1, score=80)
     # api only, mid score
-    b, _ = db.upsert_candidate(Candidate(url="https://b.ai", name="B",
-                                         source_platform="hn"))
+    b, _ = db.upsert_candidate(Candidate(url="https://b.ai", name="B", source_platform="hn"))
     db.update_service(b, has_api=1, has_referral=0, score=40)
     # api only, low score
-    c, _ = db.upsert_candidate(Candidate(url="https://c.ai", name="C",
-                                         source_platform="hn"))
+    c, _ = db.upsert_candidate(Candidate(url="https://c.ai", name="C", source_platform="hn"))
     db.update_service(c, has_api=1, has_referral=0, score=10)
 
     # default: only api+referral -> just A
@@ -120,7 +120,7 @@ def test_export_all_and_min_score(tmp_path):
 
 def test_cli_sources_lists(tmp_path, capsys):
     cfile = tmp_path / "c.toml"
-    cfile.write_text('[sources]\nhackernews = true\nreddit = false\n')
+    cfile.write_text("[sources]\nhackernews = true\nreddit = false\n")
     rc = cli.main(["--config", str(cfile), "sources"])
     out = capsys.readouterr().out
     assert rc == 0
@@ -130,18 +130,19 @@ def test_cli_sources_lists(tmp_path, capsys):
 
 def test_cli_run_rejects_invalid_source():
     import pytest
+
     with pytest.raises(SystemExit):
         cli.main(["run", "--source", "nonsense"])
 
 
 def test_cli_top_json(tmp_path, capsys):
     import json
+
     cfile = tmp_path / "c.toml"
     dbfile = tmp_path / "j.db"
     cfile.write_text(f'db_path = "{dbfile}"\n')
     db = DB(dbfile)
-    sid, _ = db.upsert_candidate(Candidate(url="https://a.ai", name="A",
-                                           source_platform="hn"))
+    sid, _ = db.upsert_candidate(Candidate(url="https://a.ai", name="A", source_platform="hn"))
     db.update_service(sid, score=42, category="code", has_api=1)
     db.close()
     rc = cli.main(["--config", str(cfile), "top", "--json"])
@@ -152,6 +153,7 @@ def test_cli_top_json(tmp_path, capsys):
 
 def test_cli_status_json(tmp_path, capsys):
     import json
+
     cfile = tmp_path / "c.toml"
     dbfile = tmp_path / "s.db"
     cfile.write_text(f'db_path = "{dbfile}"\n')
@@ -172,8 +174,8 @@ def test_cli_recheck_reports_changes(tmp_path, capsys, monkeypatch):
     db.close()
 
     async def fake_verify(url):
-        return {"has_api": True, "has_referral": True,
-                "referral_commission": "40%"}
+        return {"has_api": True, "has_referral": True, "referral_commission": "40%"}
+
     monkeypatch.setattr("ai_finder.tracker.verify", fake_verify)
 
     rc = cli.main(["--config", str(cfile), "recheck"])
@@ -191,6 +193,7 @@ def test_cli_digest(tmp_path, capsys, monkeypatch):
     async def fake_send_digest(db, token, chat, limit):
         assert token == "t" and chat == "c"
         return True
+
     monkeypatch.setattr("ai_finder.notifier.send_digest", fake_send_digest)
 
     rc = cli.main(["--config", str(cfile), "digest", "--limit", "5"])
@@ -200,11 +203,18 @@ def test_cli_digest(tmp_path, capsys, monkeypatch):
 
 def test_export_json_and_md(tmp_path):
     import json
+
     db = DB(tmp_path / "t.db")
-    a, _ = db.upsert_candidate(Candidate(url="https://a.ai", name="A",
-                                         source_platform="hn"))
-    db.update_service(a, has_api=1, has_referral=1, score=80, category="code",
-                      referral_commission="30%", referral_url="https://a.ai/aff")
+    a, _ = db.upsert_candidate(Candidate(url="https://a.ai", name="A", source_platform="hn"))
+    db.update_service(
+        a,
+        has_api=1,
+        has_referral=1,
+        score=80,
+        category="code",
+        referral_commission="30%",
+        referral_url="https://a.ai/aff",
+    )
     # JSON
     j = tmp_path / "out.json"
     cli.cmd_export(db, str(j), fmt="json")
@@ -224,11 +234,16 @@ def test_cli_links_shows_platform(tmp_path, capsys):
     dbfile = tmp_path / "lp.db"
     cfile.write_text(f'db_path = "{dbfile}"\n')
     db = DB(dbfile)
-    sid, _ = db.upsert_candidate(Candidate(url="https://earn.ai", name="EarnAI",
-                                           source_platform="hn"))
-    db.update_service(sid, has_referral=1, score=80,
-                      referral_url="https://earn.ai/aff",
-                      affiliate_platform="Rewardful")
+    sid, _ = db.upsert_candidate(
+        Candidate(url="https://earn.ai", name="EarnAI", source_platform="hn")
+    )
+    db.update_service(
+        sid,
+        has_referral=1,
+        score=80,
+        referral_url="https://earn.ai/aff",
+        affiliate_platform="Rewardful",
+    )
     db.close()
     rc = cli.main(["--config", str(cfile), "links"])
     out = capsys.readouterr().out
@@ -238,6 +253,7 @@ def test_cli_links_shows_platform(tmp_path, capsys):
 
 def test_cmd_run_uses_verify_config(tmp_path, monkeypatch):
     import asyncio
+
     db = DB(tmp_path / "t.db")
     cfg = cfgmod.load(tmp_path / "none.toml")
     cfg["verify"] = {"concurrency": 3, "retry_cooldown_h": 12.0}
@@ -251,6 +267,7 @@ def test_cmd_run_uses_verify_config(tmp_path, monkeypatch):
         captured["cooldown"] = retry_cooldown_h
         captured["max_verify"] = max_verify
         return 0
+
     monkeypatch.setattr(cli, "_verify_pending", fake_verify_pending)
 
     asyncio.run(cli.cmd_run(db, cfg, only=None))
@@ -278,6 +295,7 @@ def test_cmd_open_calls_browser(tmp_path, monkeypatch, capsys):
     db.update_service(a, has_referral=1, score=90, referral_url="https://a.ai/aff")
     opened = []
     import webbrowser
+
     monkeypatch.setattr(webbrowser, "open", lambda u: opened.append(u))
     cli.cmd_open(db, limit=5)
     assert opened == ["https://a.ai/aff"]
@@ -289,6 +307,7 @@ def test_verify_pending_caps_at_max(tmp_path, monkeypatch):
 
     from ai_finder import pipeline
     from ai_finder import verifier as v
+
     db = DB(tmp_path / "t.db")
     for i in range(5):
         db.upsert_candidate(Candidate(url=f"https://s{i}.ai", source_platform="hn"))
@@ -298,8 +317,9 @@ def test_verify_pending_caps_at_max(tmp_path, monkeypatch):
     async def fake_batch(db_, ids, concurrency=6):
         captured["n"] = len(ids)
         return len(ids)
+
     monkeypatch.setattr(v, "verify_services_batch", fake_batch)
 
     asyncio.run(pipeline.verify_pending(db, max_verify=2))
-    assert captured["n"] == 2   # only 2 of 5 pending verified this run
+    assert captured["n"] == 2  # only 2 of 5 pending verified this run
     db.close()

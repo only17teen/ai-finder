@@ -1,4 +1,5 @@
 """Tests for Linux forums link extraction (pure, no network)."""
+
 from ai_finder.collectors.linux_forums import extract_candidates
 
 FORUM = "https://lwn.net/"
@@ -38,12 +39,11 @@ def test_skips_non_ai_links():
 def test_skips_internal_and_noise():
     cands = extract_candidates(HTML, FORUM)
     domains = {c.domain for c in cands}
-    assert "lwn.net" not in domains       # forum-internal
-    assert "twitter.com" not in domains   # social noise even if AI-mentioned
+    assert "lwn.net" not in domains  # forum-internal
+    assert "twitter.com" not in domains  # social noise even if AI-mentioned
 
 
 def test_dedup_within_page():
-    html = ('<a href="https://dup.ai/a">AI one</a>'
-            '<a href="https://dup.ai/b">AI two</a>')
+    html = '<a href="https://dup.ai/a">AI one</a><a href="https://dup.ai/b">AI two</a>'
     cands = extract_candidates(html, FORUM)
     assert [c.domain for c in cands].count("dup.ai") == 1

@@ -1,4 +1,5 @@
 """Tests for .env loading (no real env mutation leakage)."""
+
 import os
 
 from ai_finder.config import load, load_dotenv
@@ -6,13 +7,12 @@ from ai_finder.config import load, load_dotenv
 
 def test_load_dotenv_parses(tmp_path, monkeypatch):
     env = tmp_path / ".env"
-    env.write_text(
-        '# comment\n\nAPIFY_TOKEN="tok123"\nTELEGRAM_CHAT_ID=42\nBAD LINE\n')
+    env.write_text('# comment\n\nAPIFY_TOKEN="tok123"\nTELEGRAM_CHAT_ID=42\nBAD LINE\n')
     monkeypatch.delenv("APIFY_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
     n = load_dotenv(env)
     assert n == 2
-    assert os.environ["APIFY_TOKEN"] == "tok123"   # quotes stripped
+    assert os.environ["APIFY_TOKEN"] == "tok123"  # quotes stripped
     assert os.environ["TELEGRAM_CHAT_ID"] == "42"
 
 

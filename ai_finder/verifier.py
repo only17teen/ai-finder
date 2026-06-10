@@ -1,8 +1,9 @@
 """Site verifier: detect API docs, referral program, pricing, and metadata.
 
-`analyze_html` is a pure function (unit-tested with fixtures). `verify` renders
-a live site with Playwright and runs the analysis. Results update the DB.
+`analyze_html` is a pure function. `verify` renders a live site with Playwright
+and runs the analysis. Results update the DB.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -15,48 +16,81 @@ from .browser import render
 from .db import DB
 
 # Path/keyword signals for each capability.
-API_PATHS = ("/api", "/docs", "/documentation", "/developer", "/developers",
-             "/reference", "/swagger", "/openapi", "/api-docs",
-             "/open", "/kaifa", "/wendang")  # 开放平台/开发/文档
-API_TEXT = ("api", "api key", "api reference", "developer", "rest api",
-            "graphql", "sdk", "documentation",
-            "开放平台", "开发者", "接口", "开发文档", "api文档", "调用")
+API_PATHS = (
+    "/api",
+    "/docs",
+    "/documentation",
+    "/developer",
+    "/developers",
+    "/reference",
+    "/swagger",
+    "/openapi",
+    "/api-docs",
+    "/open",
+    "/kaifa",
+    "/wendang",
+)
+API_TEXT = (
+    "api",
+    "api key",
+    "api reference",
+    "developer",
+    "rest api",
+    "graphql",
+    "sdk",
+    "documentation",
+)
 
-REFERRAL_PATHS = ("/affiliate", "/affiliates", "/referral", "/refer",
-                  "/partner", "/partners",
-                  "/fenxiao", "/tuiguang", "/yaoqing", "/hehuoren")
-REFERRAL_TEXT = ("affiliate", "referral", "refer a friend", "earn commission",
-                 "invite friends", "earn", "commission", "partner program",
-                 "分销", "推广", "邀请", "返佣", "佣金", "合伙人", "推荐奖励",
-                 "联盟", "分成")
+REFERRAL_PATHS = (
+    "/affiliate",
+    "/affiliates",
+    "/referral",
+    "/refer",
+    "/partner",
+    "/partners",
+    "/fenxiao",
+    "/tuiguang",
+)
+REFERRAL_TEXT = (
+    "affiliate",
+    "referral",
+    "refer a friend",
+    "earn commission",
+    "invite friends",
+    "earn",
+    "commission",
+    "partner program",
+)
 
-PRICING_PATHS = ("/pricing", "/plans", "/price", "/billing",
-                 "/jiage", "/huiyuan", "/vip", "/chongzhi")
-PRICING_TEXT = ("pricing", "free tier", "pay as you go", "/month", "per month",
-                "subscription", "free trial",
-                "价格", "定价", "会员", "套餐", "充值", "免费试用", "订阅",
-                "元/月", "积分")
+PRICING_PATHS = ("/pricing", "/plans", "/price", "/billing", "/jiage")
+PRICING_TEXT = (
+    "pricing",
+    "free tier",
+    "pay as you go",
+    "/month",
+    "per month",
+    "subscription",
+    "free trial",
+)
 
-# Specific phrases that, in body prose, reliably indicate the capability —
-# used for the body-text fallback to avoid false positives from loose words.
-API_STRONG = ("api key", "api reference", "rest api", "graphql", "api文档",
-              "开放平台", "开发文档")
-REFERRAL_STRONG = ("affiliate program", "referral program", "refer a friend",
-                   "earn commission", "invite friends", "推荐奖励", "返佣",
-                   "佣金", "合伙人", "分销")
-PRICING_STRONG = ("free tier", "pay as you go", "per month", "free trial",
-                  "免费试用", "元/月")
+# Strong phrases for body-text fallback.
+API_STRONG = ("api key", "api reference", "rest api", "graphql", "api文档")
+REFERRAL_STRONG = (
+    "affiliate program",
+    "referral program",
+    "refer a friend",
+    "earn commission",
+    "invite friends",
+)
+PRICING_STRONG = ("free tier", "pay as you go", "per month", "free trial")
 
 _COMMISSION_RE = re.compile(
     r"(\d{1,3})\s*%\s*(?:recurring\s*)?(?:commission|cut|payout|revenue|rev[\s-]?share)"
     r"|earn\s+(?:up\s+to\s+)?(\d{1,3})\s*%"
-    r"|(?:返佣|佣金|分成|提成|返现|奖励)\s*(?:高达\s*)?(\d{1,3})\s*%"
     r"|(\d{1,3})\s*%\s*(?:返佣|佣金|分成|提成|返现)",
     re.I,
 )
 
-# Affiliate-network fingerprints -> platform name. Tells you which network to
-# sign up through for a service's referral program.
 _AFFILIATE_SIGNATURES = {
     "rewardful": "Rewardful",
     "getrewardful": "Rewardful",
@@ -74,9 +108,67 @@ _AFFILIATE_SIGNATURES = {
     "reditus": "Reditus",
 }
 
+_TECH_SIGNATURES = {
+    "vercel-ai": ("x-vercel-ai", "vercel-ai-sdk", "ai/react", "ai/core"),
+    "langchain": ("langchain", "langsmith", "lc_js"),
+    "openai-compatible": ("/v1/chat/completions", "/v1/completions", "openai-organization"),
+    "dify": ("dify", "dify-client"),
+    "coze": ("coze", "coze-client"),
+    "flowise": ("flowise", "flowise-client"),
+    "gradio": ("gradio_config", "gradio-app"),
+    "streamlit": ("st-key", "streamlit-app"),
+}
+
+_CATEGORIES = {
+    "image-gen": (
+        "image generation",
+        "text to image",
+        "stable diffusion",
+        "midjourney",
+        "upscaler",
+        "dall-e",
+        "flux",
+    ),
+    "text-gen": (
+        "chatbot",
+        "llm",
+        "writing assistant",
+        "copywriting",
+        "essay writer",
+        "gpt-4",
+        "claude",
+        "llama",
+    ),
+    "video-gen": (
+        "video generation",
+        "text to video",
+        "sora",
+        "runway",
+        "pika",
+        "avatar",
+        "heygen",
+    ),
+    "audio-gen": (
+        "text to speech",
+        "voice cloning",
+        "music generation",
+        "elevenlabs",
+        "suno",
+        "udio",
+    ),
+    "productivity": (
+        "automation",
+        "workflow",
+        "summarization",
+        "transcription",
+        "meeting assistant",
+        "zapier",
+    ),
+    "coding": ("code assistant", "copilot", "autocomplete", "code generation", "programming"),
+}
+
 
 def detect_affiliate_platform(html: str) -> str:
-    """Pure: identify the affiliate network powering a site, or '' if none."""
     text = (html or "").lower()
     for sig, name in _AFFILIATE_SIGNATURES.items():
         if sig in text:
@@ -84,8 +176,30 @@ def detect_affiliate_platform(html: str) -> str:
     return ""
 
 
+def detect_tech_stack(html: str, headers: dict = None) -> list[str]:
+    stacks = []
+    text = (html or "").lower()
+    headers_str = str({k.lower(): v.lower() for k, v in (headers or {}).items()})
+    for name, sigs in _TECH_SIGNATURES.items():
+        if any(sig in text for sig in sigs) or any(sig in headers_str for sig in sigs):
+            stacks.append(name)
+    if "/v1/chat/completions" in text or "openai-compatible" in text:
+        if "openai-compatible" not in stacks:
+            stacks.append("openai-compatible")
+    return sorted(list(set(stacks)))
+
+
+def detect_category(text: str) -> str:
+    text = text.lower()
+    best_cat, max_matches = "", 0
+    for cat, keywords in _CATEGORIES.items():
+        matches = sum(1 for kw in keywords if kw in text)
+        if matches > max_matches:
+            max_matches, best_cat = matches, cat
+    return best_cat
+
+
 def _links(soup: BeautifulSoup, base_url: str):
-    """Yield (absolute_url, lowercased_anchor_text, lowercased_href)."""
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
         if href.startswith(("mailto:", "javascript:", "#")):
@@ -95,17 +209,11 @@ def _links(soup: BeautifulSoup, base_url: str):
 
 
 def _match(links, page_text, paths, texts, strong_texts=None):
-    """Return matching URL (or '') if a path/anchor signal is present.
-
-    Anchor/path matches use `texts` (may include loose words, since anchor
-    context is tight). The body-text fallback only fires on `strong_texts`
-    (specific phrases) to avoid false positives from prose like "earn" / "API"
-    appearing in a news article.
-    """
     for url, anchor, href in links:
         path = urlparse(url).path.lower().rstrip("/")
-        if any(path == p or path.startswith(p + "/") for p in paths) or \
-           any(t == anchor or t in anchor for t in texts):
+        if any(path == p or path.startswith(p + "/") for p in paths) or any(
+            t == anchor or t in anchor for t in texts
+        ):
             return url
     strong = strong_texts if strong_texts is not None else texts
     return "__text__" if any(t in page_text for t in strong) else ""
@@ -119,8 +227,7 @@ def extract_commission(text: str) -> str:
     return f"{pct}%" if pct else ""
 
 
-def analyze_html(html: str, base_url: str) -> dict:
-    """Pure: inspect a rendered page and report capabilities found."""
+def analyze_html(html: str, base_url: str, headers: dict = None) -> dict:
     soup = BeautifulSoup(html, "html.parser")
     links = list(_links(soup, base_url))
     body_text = soup.get_text(" ", strip=True).lower()
@@ -129,15 +236,21 @@ def analyze_html(html: str, base_url: str) -> dict:
     ref_url = _match(links, body_text, REFERRAL_PATHS, REFERRAL_TEXT, REFERRAL_STRONG)
     price_url = _match(links, body_text, PRICING_PATHS, PRICING_TEXT, PRICING_STRONG)
 
-    title = (soup.title.get_text(strip=True) if soup.title else "")
-    desc_el = soup.find("meta", attrs={"name": "description"}) or \
-        soup.find("meta", attrs={"property": "og:description"})
+    tech_stack = detect_tech_stack(html, headers)
+    if not api_url and "openai-compatible" in tech_stack:
+        api_url = "__inferred__"
+
+    title = soup.title.get_text(strip=True) if soup.title else ""
+    desc_el = soup.find("meta", attrs={"name": "description"}) or soup.find(
+        "meta", attrs={"property": "og:description"}
+    )
     description = desc_el.get("content", "").strip() if desc_el else ""
     og = soup.find("meta", attrs={"property": "og:image"})
 
     def clean(u: str) -> str:
-        return "" if u in ("", "__text__") else u
+        return "" if u in ("", "__text__", "__inferred__") else u
 
+    combined_meta = f"{title} {description}".lower()
     return {
         "has_api": bool(api_url),
         "api_docs_url": clean(api_url),
@@ -150,16 +263,17 @@ def analyze_html(html: str, base_url: str) -> dict:
         "name": title[:120],
         "description": description[:300],
         "og_image": og.get("content", "") if og else "",
+        "tech_stack": ",".join(tech_stack),
+        "category": detect_category(combined_meta),
     }
 
 
 async def verify(url: str) -> dict:
-    """Render `url` and analyze it. Returns findings (empty dict on failure)."""
     base = url if "://" in url else f"https://{url}"
     html = await render(base)
     if not html:
-        # plain render blocked (Cloudflare etc.) — try the stealth browser once
         from .browser import render_stealth
+
         html = await render_stealth(base)
     if not html:
         return {}
@@ -167,19 +281,34 @@ async def verify(url: str) -> dict:
     return await _probe_missing(base, findings)
 
 
-# Known paths to probe when the homepage doesn't surface a capability.
-# Cheap httpx GETs (no browser); first that yields the signal wins.
 _PROBE_PATHS = {
-    "api": ["/docs", "/api", "/api-docs", "/developers", "/developer",
-            "/reference", "/open", "/openapi"],
-    "referral": ["/affiliate", "/affiliates", "/referral", "/partners",
-                 "/partner", "/fenxiao", "/tuiguang", "/hehuoren"],
-    "pricing": ["/pricing", "/plans", "/price", "/huiyuan", "/vip"],
+    "api": [
+        "/docs",
+        "/api",
+        "/api-docs",
+        "/developers",
+        "/developer",
+        "/reference",
+        "/open",
+        "/openapi",
+        "/api/v1/chat/completions",
+        "/.well-known/ai-plugin.json",
+        "/v1/models",
+    ],
+    "referral": [
+        "/affiliate",
+        "/affiliates",
+        "/referral",
+        "/partners",
+        "/partner",
+        "/fenxiao",
+        "/tuiguang",
+    ],
+    "pricing": ["/pricing", "/plans", "/price"],
 }
 
 
 def merge_findings(base: dict, probed: dict) -> dict:
-    """Pure: fill missing capabilities in `base` from a probed page result."""
     out = dict(base)
     if not out.get("has_api") and probed.get("has_api"):
         out["has_api"] = True
@@ -194,30 +323,42 @@ def merge_findings(base: dict, probed: dict) -> dict:
     if not out.get("pricing_info") and probed.get("pricing_info"):
         out["pricing_info"] = "found"
         out["pricing_model"] = probed.get("pricing_model") or probed.get("__url__", "")
+
+    existing_stacks = set(filter(None, out.get("tech_stack", "").split(",")))
+    new_stacks = set(filter(None, probed.get("tech_stack", "").split(",")))
+    out["tech_stack"] = ",".join(sorted(list(existing_stacks | new_stacks)))
+
+    if not out.get("category") and probed.get("category"):
+        out["category"] = probed["category"]
     return out
 
 
 async def _probe_missing(base_url: str, findings: dict) -> dict:
-    """Probe known paths for capabilities the homepage didn't reveal."""
-    from urllib.parse import urljoin, urlparse
+    from urllib.parse import urljoin
 
     import httpx
-    needed = [cap for cap, key in (("api", "has_api"), ("referral", "has_referral"),
-                                   ("pricing", "pricing_info"))
-              if not findings.get(key)]
-    if not needed:
-        return findings
-    async with httpx.AsyncClient(
-        follow_redirects=True,
-        headers={"User-Agent": "Mozilla/5.0 (ai-finder)"},
-    ) as client:
-        fails = 0  # consecutive connection failures -> circuit breaker
+
+    from .net import StealthHeaders
+
+    needed = [
+        cap
+        for cap, key in (
+            ("api", "has_api"),
+            ("referral", "has_referral"),
+            ("pricing", "pricing_info"),
+        )
+        if not findings.get(key)
+    ]
+
+    async with httpx.AsyncClient(follow_redirects=True, headers=StealthHeaders.get()) as client:
+        fails = 0
         for cap in needed:
             for path in _PROBE_PATHS[cap]:
                 if fails >= 3:
-                    return findings  # host is flaky/dead — stop wasting requests
-                if findings.get({"api": "has_api", "referral": "has_referral",
-                                 "pricing": "pricing_info"}[cap]):
+                    return findings
+                if findings.get(
+                    {"api": "has_api", "referral": "has_referral", "pricing": "pricing_info"}[cap]
+                ):
                     break
                 target = urljoin(base_url, path)
                 try:
@@ -228,29 +369,33 @@ async def _probe_missing(base_url: str, findings: dict) -> dict:
                 fails = 0
                 if r.status_code != 200 or not r.text:
                     continue
-                probed = analyze_html(r.text, target)
+                probed = analyze_html(r.text, target, headers=dict(r.headers))
                 probed["__url__"] = target
                 findings = merge_findings(findings, probed)
     return findings
 
 
 def _persist_fields(row, findings: dict) -> dict:
-    """Pure: build the DB update dict from findings (no I/O)."""
     import time
+
     fields = {"last_checked": time.time()}
     if findings:
-        fields.update({
-            "has_api": int(findings["has_api"]),
-            "api_docs_url": findings["api_docs_url"],
-            "has_referral": int(findings["has_referral"]),
-            "referral_url": findings["referral_url"],
-            "referral_commission": findings["referral_commission"],
-            "affiliate_platform": findings.get("affiliate_platform", ""),
-            "pricing_info": findings["pricing_info"],
-            "pricing_model": findings["pricing_model"],
-            "verified_at": time.time(),
-            "status": "verified",
-        })
+        fields.update(
+            {
+                "has_api": int(findings["has_api"]),
+                "api_docs_url": findings["api_docs_url"],
+                "has_referral": int(findings["has_referral"]),
+                "referral_url": findings["referral_url"],
+                "referral_commission": findings["referral_commission"],
+                "affiliate_platform": findings.get("affiliate_platform", ""),
+                "pricing_info": findings["pricing_info"],
+                "pricing_model": findings["pricing_model"],
+                "tech_stack": findings.get("tech_stack", ""),
+                "category": findings.get("category", ""),
+                "verified_at": time.time(),
+                "status": "verified",
+            }
+        )
         if findings["name"] and not row["name"]:
             fields["name"] = findings["name"]
         if findings["description"]:
@@ -266,7 +411,6 @@ def _row_url(row) -> str:
 
 
 async def verify_service(db: DB, service_id: int) -> dict:
-    """Verify a stored service and persist the findings."""
     row = db.get(service_id)
     if not row:
         return {}
@@ -275,20 +419,12 @@ async def verify_service(db: DB, service_id: int) -> dict:
     return findings
 
 
-async def verify_services_batch(db: DB, service_ids: list[int],
-                                concurrency: int = 6) -> int:
-    """Verify many services reusing ONE browser. Returns count processed.
-
-    Renders all target URLs in a single browser instance (big speedup over
-    one browser per site), then analyzes + persists each.
-    """
+async def verify_services_batch(db: DB, service_ids: list[int], concurrency: int = 6) -> int:
     from .browser import render_many, render_stealth_many
-    rows = [db.get(sid) for sid in service_ids]
-    rows = [r for r in rows if r]
+
+    rows = [db.get(sid) for sid in service_ids if db.get(sid)]
     urls = {r["id"]: _row_url(r) for r in rows}
     html_by_url = await render_many(list(urls.values()), concurrency=concurrency)
-    # Stealth retry for sites plain render couldn't fetch (Cloudflare etc.),
-    # batched into one shared stealth browser.
     blocked = [u for u in urls.values() if not html_by_url.get(u)]
     if blocked:
         html_by_url.update(await render_stealth_many(blocked))
@@ -296,8 +432,6 @@ async def verify_services_batch(db: DB, service_ids: list[int],
         url = urls[r["id"]]
         html = html_by_url.get(url, "")
         findings = analyze_html(html, url) if html else {}
-        # Probe known paths (/api, /affiliate, /fenxiao, /pricing) when any
-        # capability is missing — _probe_missing decides what's actually needed.
         if findings:
             findings = await _probe_missing(url, findings)
         db.update_service(r["id"], **_persist_fields(r, findings))
@@ -306,6 +440,7 @@ async def verify_services_batch(db: DB, service_ids: list[int],
 
 if __name__ == "__main__":
     import sys
+
     target = sys.argv[sys.argv.index("--url") + 1] if "--url" in sys.argv else "geekai.co"
 
     async def _main():
@@ -314,10 +449,7 @@ if __name__ == "__main__":
         if not f:
             print("  unreachable / no HTML")
             return
-        print(f"  name:       {f['name']}")
-        print(f"  api:        {f['has_api']}  {f['api_docs_url']}")
-        print(f"  referral:   {f['has_referral']}  {f['referral_url']}  {f['referral_commission']}")
-        print(f"  platform:   {f.get('affiliate_platform') or '-'}")
-        print(f"  pricing:    {f['pricing_info']}  {f['pricing_model']}")
-        print(f"  desc:       {f['description'][:100]}")
+        for k, v in f.items():
+            print(f"  {k:12}: {v}")
+
     asyncio.run(_main())

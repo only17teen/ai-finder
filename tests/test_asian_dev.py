@@ -1,4 +1,5 @@
 """Tests for asian_dev collector (pure text extraction)."""
+
 from ai_finder.collectors.asian_dev import extract_from_text
 
 
@@ -17,8 +18,7 @@ def test_non_ai_post_yields_nothing():
 
 
 def test_skips_self_and_noise_and_dedup():
-    body = ("AI: https://v2ex.com/t/1 https://youtube.com/x "
-            "https://tool.ai/a https://tool.ai/b")
+    body = "AI: https://v2ex.com/t/1 https://youtube.com/x https://tool.ai/a https://tool.ai/b"
     cands = extract_from_text("AI tools thread", body)
     domains = [c.domain for c in cands]
     assert "v2ex.com" not in domains
@@ -33,8 +33,10 @@ def test_title_triggers_ai_context():
 
 
 def test_skips_image_assets_and_malformed():
-    body = ("AI demo https://cdn.x/pic.png https://real-ai.dev "
-            "https://<containerlab-host>/x https://s3.amazonaws.com/y.jpg")
+    body = (
+        "AI demo https://cdn.x/pic.png https://real-ai.dev "
+        "https://<containerlab-host>/x https://s3.amazonaws.com/y.jpg"
+    )
     cands = extract_from_text("AI tool", body)
     domains = {c.domain for c in cands}
     assert domains == {"real-ai.dev"}

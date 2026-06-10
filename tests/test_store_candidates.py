@@ -1,12 +1,15 @@
 """Test the shared store_candidates collector helper."""
+
 from ai_finder.collectors import store_candidates
 from ai_finder.db import DB, Candidate
 
 
 def test_store_candidates_persists_and_logs(tmp_path):
     db = DB(tmp_path / "t.db")
-    cands = [Candidate(url="https://a.ai", source_platform="x"),
-             Candidate(url="https://b.ai", source_platform="x")]
+    cands = [
+        Candidate(url="https://a.ai", source_platform="x"),
+        Candidate(url="https://b.ai", source_platform="x"),
+    ]
     new = store_candidates(db, "mysource", cands)
     assert new == 2
     assert db.stats()["total"] == 2

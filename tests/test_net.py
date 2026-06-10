@@ -1,4 +1,5 @@
 """Tests for net.py: noise filter, backoff, rate limiter, retry."""
+
 import time
 
 import httpx
@@ -30,7 +31,7 @@ def test_is_noise_domain_nonpublic():
     assert is_noise_domain("127.0.0.1")
     assert is_noise_domain("localhost")
     assert is_noise_domain("multi-user.target")
-    assert is_noise_domain("myhost")            # no TLD
+    assert is_noise_domain("myhost")  # no TLD
     assert is_noise_domain("nas.local")
     assert not is_noise_domain("real-tool.ai")
 
@@ -39,7 +40,7 @@ def test_backoff_monotonic_cap():
     # full-jitter: bounded by base*2^attempt, and by cap
     for a in range(6):
         d = net.backoff_delay(a, base=0.5, cap=10.0)
-        assert 0 <= d <= min(10.0, 0.5 * (2 ** a))
+        assert 0 <= d <= min(10.0, 0.5 * (2**a))
 
 
 def test_random_ua_in_pool():
@@ -49,7 +50,8 @@ def test_random_ua_in_pool():
 def test_db_rejects_noise_domain(tmp_path):
     db = DB(tmp_path / "t.db")
     sid, new = db.upsert_candidate(
-        Candidate(url="https://github.com/foo/bar", source_platform="hn"))
+        Candidate(url="https://github.com/foo/bar", source_platform="hn")
+    )
     assert sid == -1 and new is False
     assert db.stats()["total"] == 0
     db.close()
@@ -104,7 +106,7 @@ async def test_fetch_all_aligns_and_handles_failures(monkeypatch):
     res = await net.fetch_all(urls, per_domain_delay=0, max_retries=0)
     assert len(res) == 3
     assert res[0].text == "ok:a.ai"
-    assert res[1] is None              # failed -> None, aligned
+    assert res[1] is None  # failed -> None, aligned
     assert res[2].text == "ok:c.ai"
 
 
@@ -112,10 +114,12 @@ async def test_fetch_all_aligns_and_handles_failures(monkeypatch):
 async def test_fetch_text_stealth_fallback(monkeypatch):
     def handler(request):
         return httpx.Response(403)  # blocked
+
     transport = httpx.MockTransport(handler)
 
     async def fake_stealth(url, *a, **k):
         return "<html>recovered</html>"
+
     monkeypatch.setattr("ai_finder.browser.render_stealth", fake_stealth)
     monkeypatch.setattr(net, "backoff_delay", lambda *a, **k: 0.0)
 
@@ -124,8 +128,7 @@ async def test_fetch_text_stealth_fallback(monkeypatch):
         plain = await net.fetch_text(client, "https://x.ai", max_retries=0)
         assert plain == ""
         # stealth -> recovered
-        recovered = await net.fetch_text(client, "https://x.ai",
-                                         max_retries=0, stealth=True)
+        recovered = await net.fetch_text(client, "https://x.ai", max_retries=0, stealth=True)
         assert recovered == "<html>recovered</html>"
 
 
@@ -135,6 +138,7 @@ async def test_fetch_gives_up_returns_none(monkeypatch):
 
     def handler(request):
         return httpx.Response(500)
+
     transport = httpx.MockTransport(handler)
     async with httpx.AsyncClient(transport=transport) as client:
         r = await net.fetch(client, "https://down.test", max_retries=1)

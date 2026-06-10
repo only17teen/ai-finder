@@ -5,6 +5,7 @@ anchor text or surrounding context mentions AI. Forum-internal and well-known
 infra/social links are ignored. The HTML parser is pure and unit-tested; the
 live fetch is best-effort (forums vary and may rate-limit).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,9 +26,20 @@ SOURCES = [
 
 # Domains we never treat as discovered services.
 NOISE = {
-    "google.com", "youtube.com", "twitter.com", "x.com", "facebook.com",
-    "linkedin.com", "reddit.com", "wikipedia.org", "archive.org",
-    "patreon.com", "paypal.com", "amazon.com", "apple.com", "mozilla.org",
+    "google.com",
+    "youtube.com",
+    "twitter.com",
+    "x.com",
+    "facebook.com",
+    "linkedin.com",
+    "reddit.com",
+    "wikipedia.org",
+    "archive.org",
+    "patreon.com",
+    "paypal.com",
+    "amazon.com",
+    "apple.com",
+    "mozilla.org",
 }
 
 
@@ -40,6 +52,7 @@ def _is_noise(domain: str, forum_domain: str) -> bool:
 def extract_candidates(html: str, forum_url: str) -> list[Candidate]:
     """Pure: pull AI-related external links out of a forum page."""
     from ..db import domain_of
+
     forum_domain = domain_of(forum_url)
     soup = BeautifulSoup(html, "html.parser")
     seen: set[str] = set()
@@ -57,29 +70,35 @@ def extract_candidates(html: str, forum_url: str) -> list[Candidate]:
         if not (is_ai_related(anchor) or is_ai_related(parent)):
             continue
         seen.add(dom)
-        out.append(Candidate(
-            url=href,
-            name=anchor[:80] or dom,
-            description=parent[:200],
-            source_platform=PLATFORM,
-        ))
+        out.append(
+            Candidate(
+                url=href,
+                name=anchor[:80] or dom,
+                description=parent[:200],
+                source_platform=PLATFORM,
+            )
+        )
     return out
 
 
 async def fetch_candidates() -> list[Candidate]:
     from ._base import html_collect
+
     return await html_collect(SOURCES, extract_candidates, stealth_fallback=True)
 
 
 async def collect(db: DB) -> int:
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates())
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates()
         print(f"Found {len(cands)} external AI links across Linux forums:")
         for c in cands[:20]:
             print(f"  {c.domain:<30} {c.name[:50]}")
+
     asyncio.run(_main())

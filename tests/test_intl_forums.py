@@ -1,4 +1,5 @@
 """Tests for intl_forums (Korean GeekNews) extraction (pure)."""
+
 from ai_finder.collectors.intl_forums import extract_candidates
 
 SRC = "https://news.hada.io/"

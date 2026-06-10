@@ -3,6 +3,7 @@
 Polite by default. Used by HTTP-based collectors. Pure helpers (`backoff_delay`,
 `is_noise_domain`) are unit-tested; the async fetch is integration-level.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -33,13 +34,43 @@ USER_AGENTS = [
 RETRY_STATUS = {429, 500, 502, 503, 504}
 
 
+class StealthHeaders:
+    """Provides headers synchronized with User-Agents to bypass fingerprinting."""
+
+    _COMMON_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+    _COMMON_LANG = "en-US,en;q=0.9"
+
+    @classmethod
+    def get(cls) -> dict[str, str]:
+        ua = random.choice(USER_AGENTS)
+        headers = {
+            "User-Agent": ua,
+            "Accept": cls._COMMON_ACCEPT,
+            "Accept-Language": cls._COMMON_LANG,
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+        }
+        # Crude Sec-CH-UA inference
+        if "Chrome" in ua:
+            ver = ua.split("Chrome/")[1].split(".")[0]
+            headers["Sec-CH-UA"] = (
+                f'"Not-A.Brand";v="99", "Chromium";v="{ver}", "Google Chrome";v="{ver}"'
+            )
+            headers["Sec-CH-UA-Mobile"] = "?0"
+            headers["Sec-CH-UA-Platform"] = '"Windows"' if "Windows" in ua else '"Linux"'
+        return headers
+
+
 def random_ua() -> str:
     return random.choice(USER_AGENTS)
 
 
 def backoff_delay(attempt: int, base: float = 0.5, cap: float = 30.0) -> float:
     """Exponential backoff with full jitter (pure)."""
-    return random.uniform(0, min(cap, base * (2 ** attempt)))
+    return random.uniform(0, min(cap, base * (2**attempt)))
 
 
 class _BoundedDict(OrderedDict):
@@ -54,12 +85,27 @@ class _BoundedDict(OrderedDict):
 
 
 class RateLimiter:
-    """Enforce a minimum delay between requests to the same host."""
+    """Enforce a minimum delay between requests to the same host with latency adaptation."""
 
     def __init__(self, per_domain_delay: float = 1.0):
         self.delay = per_domain_delay
         self._last = _BoundedDict()
         self._locks = _BoundedDict()
+        self._latencies = _BoundedDict()  # track recent response times
+
+    def report_latency(self, url: str, latency: float):
+        """Report server response time to adapt delay."""
+        dom = domain_of(url)
+        # EMA of latency
+        prev = self._latencies.get(dom, latency)
+        self._latencies[dom] = 0.7 * prev + 0.3 * latency
+
+    def _get_adapted_delay(self, dom: str) -> float:
+        # If latency is > 2s, increase base delay
+        latency = self._latencies.get(dom, 0.0)
+        if latency > 2.0:
+            return self.delay * (latency / 1.0)  # scale delay by latency
+        return self.delay
 
     async def wait(self, url: str) -> None:
         if self.delay <= 0:
@@ -71,14 +117,20 @@ class RateLimiter:
         async with lock:
             now = time.monotonic()
             elapsed = now - self._last.get(dom, 0.0)
-            if elapsed < self.delay:
-                await asyncio.sleep(self.delay - elapsed)
+            adapted = self._get_adapted_delay(dom)
+            if elapsed < adapted:
+                await asyncio.sleep(adapted - elapsed)
             self._last[dom] = time.monotonic()
 
 
-async def fetch(client: httpx.AsyncClient, url: str, *,
-                limiter: RateLimiter | None = None,
-                max_retries: int = 3, timeout: float = 20.0) -> httpx.Response | None:
+async def fetch(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    limiter: RateLimiter | None = None,
+    max_retries: int = 3,
+    timeout: float = 20.0,
+) -> httpx.Response | None:
     """GET with UA rotation, rate limiting and retry/backoff on 429/5xx.
 
     Returns the Response, or None if all attempts failed.
@@ -87,8 +139,12 @@ async def fetch(client: httpx.AsyncClient, url: str, *,
         if limiter:
             await limiter.wait(url)
         try:
-            r = await client.get(url, timeout=timeout,
-                                  headers={"User-Agent": random_ua()})
+            start = time.monotonic()
+            r = await client.get(url, timeout=timeout, headers=StealthHeaders.get())
+            latency = time.monotonic() - start
+            if limiter:
+                limiter.report_latency(url, latency)
+
             if r.status_code in RETRY_STATUS and attempt < max_retries:
                 d = backoff_delay(attempt)
                 log.warning("fetch %s -> %s, retry in %.1fs", url, r.status_code, d)
@@ -98,15 +154,15 @@ async def fetch(client: httpx.AsyncClient, url: str, *,
             return r
         except (httpx.HTTPError, httpx.TimeoutException) as e:
             if attempt >= max_retries:
-                log.error("fetch %s failed after %d attempts: %s",
-                          url, attempt + 1, e)
+                log.error("fetch %s failed after %d attempts: %s", url, attempt + 1, e)
                 return None
             await asyncio.sleep(backoff_delay(attempt))
     return None
 
 
-async def fetch_text(client, url, *, limiter=None, max_retries: int = 3,
-                     stealth: bool = False) -> str:
+async def fetch_text(
+    client, url, *, limiter=None, max_retries: int = 3, stealth: bool = False
+) -> str:
     """Fetch one URL's text. With `stealth`, fall back to Camoufox when the
     plain httpx fetch is blocked/empty. Returns '' on total failure."""
     r = await fetch(client, url, limiter=limiter, max_retries=max_retries)
@@ -114,12 +170,14 @@ async def fetch_text(client, url, *, limiter=None, max_retries: int = 3,
         return r.text
     if stealth:
         from .browser import render_stealth
+
         return await render_stealth(url)
     return ""
 
 
-async def fetch_all(urls, per_domain_delay: float = 1.0,
-                    max_retries: int = 3, user_agent: str | None = None):
+async def fetch_all(
+    urls, per_domain_delay: float = 1.0, max_retries: int = 3, user_agent: str | None = None
+):
     """Fetch many URLs concurrently in one client. Returns responses aligned
     to `urls` (None where the fetch failed). Shared by HTTP collectors."""
     headers = {"User-Agent": user_agent or random_ua()}

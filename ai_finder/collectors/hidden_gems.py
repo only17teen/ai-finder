@@ -5,6 +5,7 @@ that list domestic .cn tools, European directories, and HuggingFace trending
 Spaces (often niche CN/EU research demos). All server-rendered or JSON — no
 browser needed. Link/JSON parsing is pure and unit-tested.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,11 +19,11 @@ PLATFORM = "hidden_gems"
 
 # Server-rendered directories (no JS). Each links out to tool domains.
 HTML_SOURCES = [
-    "https://ai-bot.cn/",            # 中国 — domestic Chinese tools (.cn)
-    "https://www.aigc.cn/",          # 中国 — large AIGC directory (265+ tools)
+    "https://ai-bot.cn/",  # 中国 — domestic Chinese tools (.cn)
+    "https://www.aigc.cn/",  # 中国 — large AIGC directory (265+ tools)
     "https://www.aixploria.com/en/",  # EU (France) — large niche listing
     "https://intelligence-artificielle.com/",  # EU (France) — FR-native dir
-    "https://aitools.fyi/",          # EU — indie tools
+    "https://aitools.fyi/",  # EU — indie tools
 ]
 
 # rankmyai region rankings -> per-tool detail pages -> outbound site.
@@ -35,16 +36,31 @@ RANKMYAI_REGIONS = [
     "https://www.rankmyai.com/rankings/top-ai-tools-singapore",
 ]
 
-HF_SPACES_API = ("https://huggingface.co/api/spaces"
-                 "?sort=likes&direction=-1&limit=80&full=true")
+HF_SPACES_API = "https://huggingface.co/api/spaces?sort=likes&direction=-1&limit=80&full=true"
 
 # Extra directory/affiliate hosts to ignore beyond the global noise set.
 _EXTRA_NOISE = {
-    "ai-bot.cn", "aigc.cn", "aixploria.com", "aitools.fyi", "huggingface.co",
-    "hf.co", "beian.miit.gov.cn", "miitbeian.gov.cn", "weibo.com",
-    "qq.com", "bilibili.com", "zhihu.com", "getrewardful.com",
-    "beian.gov.cn", "gov.cn", "prf.hn", "go.sjv.io", "sjv.io",
-    "rankmyai.com", "creativecommons.org", "wordpress.org",
+    "ai-bot.cn",
+    "aigc.cn",
+    "aixploria.com",
+    "aitools.fyi",
+    "huggingface.co",
+    "hf.co",
+    "beian.miit.gov.cn",
+    "miitbeian.gov.cn",
+    "weibo.com",
+    "qq.com",
+    "bilibili.com",
+    "zhihu.com",
+    "getrewardful.com",
+    "beian.gov.cn",
+    "gov.cn",
+    "prf.hn",
+    "go.sjv.io",
+    "sjv.io",
+    "rankmyai.com",
+    "creativecommons.org",
+    "wordpress.org",
 }
 
 
@@ -69,8 +85,9 @@ def extract_from_directory(html: str, source_url: str) -> list[Candidate]:
             continue
         seen.add(dom)
         name = a.get_text(" ", strip=True) or dom
-        out.append(Candidate(url=href, name=name[:80],
-                             description=name[:160], source_platform=PLATFORM))
+        out.append(
+            Candidate(url=href, name=name[:80], description=name[:160], source_platform=PLATFORM)
+        )
     return out
 
 
@@ -95,7 +112,7 @@ def extract_rankmyai_links(html: str) -> list[str]:
 def extract_rankmyai_outbound(html: str) -> Candidate | None:
     """Pure: outbound tool site from a rankmyai detail page."""
     soup = BeautifulSoup(html, "html.parser")
-    title = (soup.title.get_text(strip=True) if soup.title else "")
+    title = soup.title.get_text(strip=True) if soup.title else ""
     prefer, fallback = None, None
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
@@ -108,8 +125,12 @@ def extract_rankmyai_outbound(html: str) -> Candidate | None:
     url = prefer or fallback
     if not url:
         return None
-    return Candidate(url=url, name=(title or domain_of(url))[:80],
-                     description=title[:160], source_platform=PLATFORM)
+    return Candidate(
+        url=url,
+        name=(title or domain_of(url))[:80],
+        description=title[:160],
+        source_platform=PLATFORM,
+    )
 
 
 def hf_space_to_candidate(space: dict) -> Candidate | None:
@@ -134,6 +155,7 @@ def hf_space_to_candidate(space: dict) -> Candidate | None:
 
 async def fetch_candidates() -> list[Candidate]:
     from ..net import RateLimiter, fetch, fetch_text
+
     limiter = RateLimiter(per_domain_delay=1.0)
     out: list[Candidate] = []
     async with httpx.AsyncClient(follow_redirects=True, verify=False) as client:
@@ -143,13 +165,11 @@ async def fetch_candidates() -> list[Candidate]:
                 out.extend(extract_from_directory(html, url))
         # rankmyai region rankings -> detail pages -> outbound sites.
         for region_url in RANKMYAI_REGIONS:
-            html = await fetch_text(client, region_url, limiter=limiter,
-                                    stealth=True)
+            html = await fetch_text(client, region_url, limiter=limiter, stealth=True)
             if not html:
                 continue
             details = extract_rankmyai_links(html)[:15]
-            pages = await asyncio.gather(
-                *[fetch(client, d, limiter=limiter) for d in details])
+            pages = await asyncio.gather(*[fetch(client, d, limiter=limiter) for d in details])
             for pr in pages:
                 if pr:
                     c = extract_rankmyai_outbound(pr.text)
@@ -166,18 +186,22 @@ async def fetch_candidates() -> list[Candidate]:
             except Exception:
                 pass
     from ._base import dedup_by_domain
+
     return dedup_by_domain(out, prefer_higher_upvotes=True)
 
 
 async def collect(db: DB) -> int:
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates())
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates()
         print(f"Found {len(cands)} hidden-gem candidates (CN/EU/HF):")
         for c in cands[:30]:
             print(f"  [{c.upvotes:>4}] {c.domain:<30} {c.name[:40]}")
+
     asyncio.run(_main())

@@ -1,4 +1,5 @@
 """Tests for launch collector (pure extraction)."""
+
 from ai_finder.collectors.launch import extract_candidates
 
 SRC = "https://microlaunch.net/"

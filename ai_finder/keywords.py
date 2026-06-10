@@ -1,13 +1,34 @@
 """Shared AI keyword matching for candidate filtering."""
+
 from __future__ import annotations
 
 import re
 
 AI_KEYWORDS = [
-    "ai", "a.i.", "llm", "gpt", "genai", "generative", "neural", "ml",
-    "machine learning", "inference", "model", "diffusion", "embedding",
-    "chatbot", "agent", "rag", "transformer", "fine-tune", "fine tune",
-    "openai", "anthropic", "stable diffusion", "text-to", "speech-to",
+    "ai",
+    "a.i.",
+    "llm",
+    "gpt",
+    "genai",
+    "generative",
+    "neural",
+    "ml",
+    "machine learning",
+    "inference",
+    "model",
+    "diffusion",
+    "embedding",
+    "chatbot",
+    "agent",
+    "rag",
+    "transformer",
+    "fine-tune",
+    "fine tune",
+    "openai",
+    "anthropic",
+    "stable diffusion",
+    "text-to",
+    "speech-to",
 ]
 # Words that hint the service exposes an API (raises priority, not required).
 API_HINTS = ["api", "sdk", "developer", "endpoint", "rest", "graphql"]
@@ -32,7 +53,4 @@ def mentions_api(text: str) -> bool:
     if not text:
         return False
     t = text.lower()
-    return any(
-        re.search(r"(?<![a-z0-9])" + re.escape(h) + r"(?![a-z0-9])", t)
-        for h in API_HINTS
-    )
+    return any(re.search(r"(?<![a-z0-9])" + re.escape(h) + r"(?![a-z0-9])", t) for h in API_HINTS)

@@ -1,4 +1,5 @@
 """Tests for hidden_gems collector (pure functions, no network)."""
+
 from ai_finder.collectors.hidden_gems import (
     extract_from_directory,
     extract_rankmyai_links,
@@ -30,16 +31,18 @@ def test_extract_chinese_tools():
 def test_extract_skips_internal_noise_social_and_dups():
     cands = extract_from_directory(DIR_HTML, SRC)
     domains = [c.domain for c in cands]
-    assert "ai-bot.cn" not in domains      # internal
-    assert "github.com" not in domains     # global noise
-    assert "weibo.com" not in domains      # CN social (extra noise)
+    assert "ai-bot.cn" not in domains  # internal
+    assert "github.com" not in domains  # global noise
+    assert "weibo.com" not in domains  # CN social (extra noise)
     assert domains.count("metaso.cn") == 1  # dedup
 
 
 def test_hf_space_to_candidate():
-    sp = {"id": "qwen/Qwen-Image", "likes": 1234,
-          "cardData": {"title": "Qwen Image",
-                       "short_description": "image generation"}}
+    sp = {
+        "id": "qwen/Qwen-Image",
+        "likes": 1234,
+        "cardData": {"title": "Qwen Image", "short_description": "image generation"},
+    }
     c = hf_space_to_candidate(sp)
     assert c.domain == "huggingface.co"
     assert c.name == "Qwen Image"
@@ -85,7 +88,7 @@ def test_extract_rankmyai_links():
 def test_extract_rankmyai_outbound():
     c = extract_rankmyai_outbound(RANK_DETAIL)
     assert c is not None
-    assert c.domain == "42dot.ai"          # not creativecommons / rankmyai
+    assert c.domain == "42dot.ai"  # not creativecommons / rankmyai
     assert c.name == "42dot - Autonomous AI"
 
 

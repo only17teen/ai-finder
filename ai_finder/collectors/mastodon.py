@@ -4,6 +4,7 @@ Federated, no auth. We read each instance's #ai tag timeline and keep the
 link-preview cards (`card.url`) — the actual external services people share.
 Card mapping is pure and unit-tested.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -13,16 +14,27 @@ from ..keywords import is_ai_related
 
 PLATFORM = "mastodon"
 
-INSTANCES = ["mastodon.social", "hachyderm.io", "mas.to",
-             "techhub.social", "fosstodon.org"]
+INSTANCES = ["mastodon.social", "hachyderm.io", "mas.to", "techhub.social", "fosstodon.org"]
 TAG_URL = "https://{inst}/api/v1/timelines/tag/ai?limit=40"
 
 # Mastodon hosts + link shorteners are not the discovered service.
 _EXTRA_NOISE = {
-    "mastodon.social", "mastodon.uno", "mastodon.online", "mas.to",
-    "hachyderm.io", "mstdn.social", "techhub.social", "fosstodon.org",
-    "bit.ly", "buff.ly", "t.co", "ow.ly",
-    "tinyurl.com", "dlvr.it", "flip.it", "podbean.com",
+    "mastodon.social",
+    "mastodon.uno",
+    "mastodon.online",
+    "mas.to",
+    "hachyderm.io",
+    "mstdn.social",
+    "techhub.social",
+    "fosstodon.org",
+    "bit.ly",
+    "buff.ly",
+    "t.co",
+    "ow.ly",
+    "tinyurl.com",
+    "dlvr.it",
+    "flip.it",
+    "podbean.com",
 }
 
 
@@ -42,12 +54,14 @@ def card_to_candidate(card: dict) -> Candidate | None:
         return None
     if not is_ai_related(f"{title} {desc}"):
         return None
-    return Candidate(url=url, name=title[:80] or dom,
-                     description=desc[:160], source_platform=PLATFORM)
+    return Candidate(
+        url=url, name=title[:80] or dom, description=desc[:160], source_platform=PLATFORM
+    )
 
 
 async def fetch_candidates() -> list[Candidate]:
     from ..net import fetch_all
+
     urls = [TAG_URL.format(inst=i) for i in INSTANCES]
     responses = await fetch_all(urls, per_domain_delay=1.0)
     out: list[Candidate] = []
@@ -63,18 +77,22 @@ async def fetch_candidates() -> list[Candidate]:
             if c:
                 out.append(c)
     from ._base import dedup_by_domain
+
     return dedup_by_domain(out)
 
 
 async def collect(db: DB) -> int:
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates())
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates()
         print(f"Found {len(cands)} Mastodon #ai card candidates:")
         for c in cands[:30]:
             print(f"  {c.domain:<30} {c.name[:40]}")
+
     asyncio.run(_main())

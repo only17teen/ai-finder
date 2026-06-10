@@ -3,6 +3,7 @@
 Pure utilities, no I/O. Kept separate from storage so collectors and the
 verifier can depend on domain logic without pulling in SQLite.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -11,9 +12,27 @@ import tldextract
 
 # Subdomain labels that denote the same service (collapsed for dedup).
 _COMMON_SUBDOMAINS = {
-    "www", "app", "apps", "docs", "doc", "api", "dev", "developer",
-    "developers", "get", "go", "my", "beta", "dashboard", "console",
-    "portal", "platform", "try", "start", "home", "web",
+    "www",
+    "app",
+    "apps",
+    "docs",
+    "doc",
+    "api",
+    "dev",
+    "developer",
+    "developers",
+    "get",
+    "go",
+    "my",
+    "beta",
+    "dashboard",
+    "console",
+    "portal",
+    "platform",
+    "try",
+    "start",
+    "home",
+    "web",
 }
 
 # Offline extractor backed by the bundled Public Suffix List snapshot.
@@ -37,6 +56,7 @@ def domain_of(url: str) -> str:
     if not registrable:
         # no recognizable public suffix — fall back to the raw host
         from urllib.parse import urlparse
+
         return (urlparse(url).hostname or "").lower()
     # strip only the *leading* common-service labels from the subdomain part
     sub_labels = [s for s in ext.subdomain.split(".") if s]
@@ -48,31 +68,91 @@ def domain_of(url: str) -> str:
 
 # Generic/infra domains that are never the niche AI service we want to track.
 NOISE_DOMAINS = {
-    "github.com", "gitlab.com", "bitbucket.org", "google.com", "youtube.com",
-    "youtu.be", "twitter.com", "x.com", "facebook.com", "linkedin.com",
-    "instagram.com", "reddit.com", "wikipedia.org", "medium.com",
-    "substack.com", "apple.com", "microsoft.com", "amazon.com",
-    "producthunt.com", "news.ycombinator.com",
+    "github.com",
+    "gitlab.com",
+    "bitbucket.org",
+    "google.com",
+    "youtube.com",
+    "youtu.be",
+    "twitter.com",
+    "x.com",
+    "facebook.com",
+    "linkedin.com",
+    "instagram.com",
+    "reddit.com",
+    "wikipedia.org",
+    "medium.com",
+    "substack.com",
+    "apple.com",
+    "microsoft.com",
+    "amazon.com",
+    "producthunt.com",
+    "news.ycombinator.com",
 }
 
 # News/media outlets — they report on AI, they aren't the service itself.
 NEWS_DOMAINS = {
-    "arstechnica.com", "techcrunch.com", "theverge.com", "wired.com",
-    "nytimes.com", "bbc.com", "cnbc.com", "fastcompany.com", "gizmodo.com",
-    "theinformation.com", "harvardmagazine.com", "lesswrong.com", "ign.com",
-    "store.steampowered.com", "steamcommunity.com", "gadgetreview.com",
-    "legiscan.com", "bloomberg.com", "reuters.com", "wsj.com", "forbes.com",
-    "businessinsider.com", "engadget.com", "venturebeat.com", "zdnet.com",
-    "cnet.com", "axios.com", "aljazeera.com", "theguardian.com", "cnn.com",
-    "tomshardware.com", "sfstandard.com", "tiktok.com", "arxiv.org",
-    "404media.co", "theregister.com", "thurrott.com", "neowin.net",
-    "scientificamerican.com", "boredpanda.com", "nature.com",
-    "spectrum.ieee.org", "phys.org", "sciencedaily.com",
-    "futurism.com", "theatlantic.com", "currentaffairs.org", "euronews.com",
-    "vox.com", "wikipedia.org", "kit.com",
+    "arstechnica.com",
+    "techcrunch.com",
+    "theverge.com",
+    "wired.com",
+    "nytimes.com",
+    "bbc.com",
+    "cnbc.com",
+    "fastcompany.com",
+    "gizmodo.com",
+    "theinformation.com",
+    "harvardmagazine.com",
+    "lesswrong.com",
+    "ign.com",
+    "store.steampowered.com",
+    "steamcommunity.com",
+    "gadgetreview.com",
+    "legiscan.com",
+    "bloomberg.com",
+    "reuters.com",
+    "wsj.com",
+    "forbes.com",
+    "businessinsider.com",
+    "engadget.com",
+    "venturebeat.com",
+    "zdnet.com",
+    "cnet.com",
+    "axios.com",
+    "aljazeera.com",
+    "theguardian.com",
+    "cnn.com",
+    "tomshardware.com",
+    "sfstandard.com",
+    "tiktok.com",
+    "arxiv.org",
+    "404media.co",
+    "theregister.com",
+    "thurrott.com",
+    "neowin.net",
+    "scientificamerican.com",
+    "boredpanda.com",
+    "nature.com",
+    "spectrum.ieee.org",
+    "phys.org",
+    "sciencedaily.com",
+    "futurism.com",
+    "theatlantic.com",
+    "currentaffairs.org",
+    "euronews.com",
+    "vox.com",
+    "wikipedia.org",
+    "kit.com",
     # fediverse / forum hosts that cross-link to each other (not services)
-    "lemmy.world", "lemmy.ml", "programming.dev", "lemmy.dbzer0.com",
-    "sh.itjust.works", "feddit.org", "feddit.it", "lemm.ee", "catbox.moe",
+    "lemmy.world",
+    "lemmy.ml",
+    "programming.dev",
+    "lemmy.dbzer0.com",
+    "sh.itjust.works",
+    "feddit.org",
+    "feddit.it",
+    "lemm.ee",
+    "catbox.moe",
 }
 
 _ALL_NOISE: frozenset[str] = frozenset(NOISE_DOMAINS | NEWS_DOMAINS)
@@ -86,9 +166,12 @@ def is_noise_domain(domain: str) -> bool:
     if ":" in domain:
         return True
     # Non-public hosts: localhost, IPs, systemd targets, no-dot/TLD-less names.
-    if domain in ("localhost",) or domain.startswith("127.") or \
-            domain.replace(".", "").isdigit() or "." not in domain or \
-            domain.endswith((".local", ".target", ".service", ".lan")):
+    if (
+        domain in ("localhost",)
+        or domain.startswith("127.")
+        or domain.replace(".", "").isdigit()
+        or "." not in domain
+        or domain.endswith((".local", ".target", ".service", ".lan"))
+    ):
         return True
-    return any(domain == n or domain.endswith("." + n)
-               for n in _ALL_NOISE)
+    return any(domain == n or domain.endswith("." + n) for n in _ALL_NOISE)

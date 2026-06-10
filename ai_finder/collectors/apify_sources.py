@@ -4,6 +4,7 @@ JS-heavy sites — we delegate rendering to Apify actors and read their dataset.
 Actor ids are configurable; item->Candidate mapping is pure and tested.
 Requires an Apify token (config/env); without one, collection is skipped.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -53,14 +54,14 @@ def item_to_candidate(item: dict, platform: str) -> Candidate | None:
                 break
         except (TypeError, ValueError):
             continue
-    c = Candidate(url=url, name=name, description=desc,
-                  source_platform=platform, upvotes=votes)
+    c = Candidate(url=url, name=name, description=desc, source_platform=platform, upvotes=votes)
     return c if c.domain else None
 
 
 def _run_actor(token: str, actor: str, run_input: dict) -> list[dict]:
     """Run an Apify actor synchronously and return its dataset items."""
     from apify_client import ApifyClient
+
     client = ApifyClient(token)
     run = client.actor(actor).call(run_input=run_input)
     if not run:
@@ -91,22 +92,28 @@ async def fetch_candidates(
     return out
 
 
-async def collect(db: DB, token: str | None = None,
-                  actors: dict | None = None) -> int:
+async def collect(db: DB, token: str | None = None, actors: dict | None = None) -> int:
     from . import store_candidates
+
     return store_candidates(db, "apify", await fetch_candidates(token, actors))
 
 
 if __name__ == "__main__":
+
     async def _main():
         if not os.getenv("APIFY_TOKEN"):
             print("APIFY_TOKEN not set — set it to run live. Mapping demo:")
-            sample = {"name": "GeekAI", "website": "https://geekai.co",
-                      "tagline": "LLM gateway API", "votesCount": 120}
+            sample = {
+                "name": "GeekAI",
+                "website": "https://geekai.co",
+                "tagline": "LLM gateway API",
+                "votesCount": 120,
+            }
             print(" ", item_to_candidate(sample, PLATFORM_PH))
             return
         cands = await fetch_candidates()
         print(f"Found {len(cands)} AI products via Apify:")
         for c in cands[:20]:
             print(f"  [{c.upvotes:>4}] {c.domain:<28} {c.name[:50]}")
+
     asyncio.run(_main())

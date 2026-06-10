@@ -4,6 +4,7 @@ Reads recent messages from public AI channels and extracts AI-related links.
 Requires Telegram API credentials (api_id, api_hash). Only public channels.
 Link extraction from message text is pure and unit-tested.
 """
+
 from __future__ import annotations
 
 import re
@@ -15,8 +16,16 @@ PLATFORM = "telegram"
 _URL_RE = re.compile(r"https?://[^\s\)\]\>\"']+")
 
 _NOISE = {
-    "t.me", "telegram.me", "telegram.org", "youtube.com", "youtu.be",
-    "twitter.com", "x.com", "instagram.com", "facebook.com", "google.com",
+    "t.me",
+    "telegram.me",
+    "telegram.org",
+    "youtube.com",
+    "youtu.be",
+    "twitter.com",
+    "x.com",
+    "instagram.com",
+    "facebook.com",
+    "google.com",
 }
 
 
@@ -38,8 +47,7 @@ def extract_links(text: str) -> list[Candidate]:
         if not (ai_ctx or is_ai_related(url)):
             continue
         seen.add(dom)
-        out.append(Candidate(url=url, name=dom, description=text[:160],
-                             source_platform=PLATFORM))
+        out.append(Candidate(url=url, name=dom, description=text[:160], source_platform=PLATFORM))
     return out
 
 
@@ -53,6 +61,7 @@ async def fetch_candidates(
     if not (api_id and api_hash and channels):
         return []
     from telethon import TelegramClient
+
     out: list[Candidate] = []
     client = TelegramClient(session, api_id, api_hash)
     await client.start()
@@ -71,16 +80,17 @@ async def fetch_candidates(
     return list(uniq.values())
 
 
-async def collect(db: DB, api_id=None, api_hash=None,
-                  channels=None) -> int:
+async def collect(db: DB, api_id=None, api_hash=None, channels=None) -> int:
     from . import store_candidates
-    return store_candidates(
-        db, PLATFORM, await fetch_candidates(api_id, api_hash, channels))
+
+    return store_candidates(db, PLATFORM, await fetch_candidates(api_id, api_hash, channels))
 
 
 if __name__ == "__main__":
-    sample = ("New AI tool drop! Check https://geekai.co for an LLM API, "
-              "and https://example.com/about . Join https://t.me/aichan")
+    sample = (
+        "New AI tool drop! Check https://geekai.co for an LLM API, "
+        "and https://example.com/about . Join https://t.me/aichan"
+    )
     print("Link-extraction demo (no credentials needed):")
     for c in extract_links(sample):
         print(f"  {c.domain:<20} {c.url}")

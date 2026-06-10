@@ -1,4 +1,5 @@
 """Tests for reddit_rss collector (pure RSS extraction)."""
+
 from ai_finder.collectors.reddit_rss import extract_from_rss
 
 RSS = """
@@ -32,9 +33,9 @@ def test_extracts_ai_external_links():
 def test_skips_nonai_reddit_internal_and_assets():
     cands = extract_from_rss(RSS)
     domains = {c.domain for c in cands}
-    assert "photos.example" not in domains      # non-AI post
-    assert "reddit.com" not in domains           # internal
-    assert "preview.redd.it" not in domains      # reddit media
+    assert "photos.example" not in domains  # non-AI post
+    assert "reddit.com" not in domains  # internal
+    assert "preview.redd.it" not in domains  # reddit media
     assert not any(d.endswith("/pic.jpg") for d in domains)  # asset filtered
 
 

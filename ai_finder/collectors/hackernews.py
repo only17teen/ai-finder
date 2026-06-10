@@ -3,6 +3,7 @@
 Free, no key, no rate limit. We read Show HN stories, keep AI-related ones
 that link to an external site, and store them as candidates.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -66,13 +67,16 @@ async def fetch_candidates(limit: int = 100) -> list[Candidate]:
 async def collect(db: DB, limit: int = 100) -> int:
     """Fetch and store candidates. Returns count of new services."""
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates(limit))
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates(60)
         print(f"Found {len(cands)} AI candidates on Show HN:")
         for c in cands[:15]:
             print(f"  [{c.upvotes:>4}] {c.domain:<28} {c.name[:50]}")
+
     asyncio.run(_main())

@@ -4,6 +4,7 @@
 threshold that haven't been announced yet (tracked via status='notified').
 Uses the Bot HTTP API (bot token + chat id) — no extra deps.
 """
+
 from __future__ import annotations
 
 import html
@@ -32,8 +33,7 @@ def format_service(row: dict) -> str:
     if row.get("has_referral"):
         comm = row.get("referral_commission") or ""
         lines.append(
-            f"💰 Referral{(' ' + e(comm)) if comm else ''}: "
-            f"{e(row.get('referral_url') or 'yes')}"
+            f"💰 Referral{(' ' + e(comm)) if comm else ''}: {e(row.get('referral_url') or 'yes')}"
         )
     if row.get("pricing_model"):
         lines.append(f"💵 Pricing: {e(row['pricing_model'])}")
@@ -45,9 +45,12 @@ async def send_message(token: str, chat_id: str, text: str) -> bool:
         try:
             r = await client.post(
                 API.format(token=token),
-                json={"chat_id": chat_id, "text": text,
-                      "parse_mode": "HTML",
-                      "disable_web_page_preview": True},
+                json={
+                    "chat_id": chat_id,
+                    "text": text,
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": True,
+                },
                 timeout=15,
             )
             return r.status_code == 200
@@ -55,8 +58,7 @@ async def send_message(token: str, chat_id: str, text: str) -> bool:
             return False
 
 
-async def notify_new(db: DB, token: str, chat_id: str,
-                     threshold: int = 50) -> int:
+async def notify_new(db: DB, token: str, chat_id: str, threshold: int = 50) -> int:
     """Announce verified services scoring >= threshold not yet notified.
 
     Marks them status='notified'. Returns count sent.
@@ -64,8 +66,8 @@ async def notify_new(db: DB, token: str, chat_id: str,
     if not (token and chat_id):
         return 0
     rows = db.conn.execute(
-        "SELECT * FROM services WHERE status='verified' AND score>=? "
-        "ORDER BY score DESC", (threshold,),
+        "SELECT * FROM services WHERE status='verified' AND score>=? ORDER BY score DESC",
+        (threshold,),
     ).fetchall()
     sent = 0
     for row in rows:
@@ -75,8 +77,7 @@ async def notify_new(db: DB, token: str, chat_id: str,
     return sent
 
 
-async def send_digest(db: DB, token: str, chat_id: str,
-                      limit: int = 10) -> bool:
+async def send_digest(db: DB, token: str, chat_id: str, limit: int = 10) -> bool:
     """Send a top-N digest of the highest-scoring services."""
     if not (token and chat_id):
         return False
@@ -88,12 +89,19 @@ async def send_digest(db: DB, token: str, chat_id: str,
 
 
 if __name__ == "__main__":
-    sample = {"name": "GeekAI", "domain": "geekai.co", "score": 95,
-              "category": "text", "description": "Unified LLM gateway API.",
-              "has_api": 1, "api_docs_url": "https://geekai.co/docs",
-              "has_referral": 1, "referral_commission": "30%",
-              "referral_url": "https://geekai.co/affiliate",
-              "pricing_model": "https://geekai.co/pricing"}
+    sample = {
+        "name": "GeekAI",
+        "domain": "geekai.co",
+        "score": 95,
+        "category": "text",
+        "description": "Unified LLM gateway API.",
+        "has_api": 1,
+        "api_docs_url": "https://geekai.co/docs",
+        "has_referral": 1,
+        "referral_commission": "30%",
+        "referral_url": "https://geekai.co/affiliate",
+        "pricing_model": "https://geekai.co/pricing",
+    }
     print("Formatted message preview:\n")
     print(format_service(sample))
     print("\nSet bot token + chat_id in config to send live.")

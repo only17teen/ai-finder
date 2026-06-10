@@ -4,6 +4,7 @@ MicroLaunch / TinyLaunch list brand-new indie products days after creation —
 long before they hit ProductHunt or directories. Server-rendered; we keep
 AI-related outbound links. Parsing is pure and unit-tested.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -48,25 +49,35 @@ def extract_candidates(html: str, source_url: str) -> list[Candidate]:
         if not (is_ai_related(anchor) or is_ai_related(parent)):
             continue
         seen.add(dom)
-        out.append(Candidate(url=href, name=(anchor or dom)[:80],
-                             description=parent[:160], source_platform=PLATFORM))
+        out.append(
+            Candidate(
+                url=href,
+                name=(anchor or dom)[:80],
+                description=parent[:160],
+                source_platform=PLATFORM,
+            )
+        )
     return out
 
 
 async def fetch_candidates() -> list[Candidate]:
     from ._base import html_collect
+
     return await html_collect(SOURCES, extract_candidates, stealth_fallback=True)
 
 
 async def collect(db: DB) -> int:
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates())
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates()
         print(f"Found {len(cands)} early-launch AI candidates:")
         for c in cands[:30]:
             print(f"  {c.domain:<30} {c.name[:40]}")
+
     asyncio.run(_main())

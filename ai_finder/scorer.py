@@ -2,11 +2,13 @@
 
 Pure scoring/categorization functions, plus a `rescore_all` that applies them
 to every stored service. Score reflects monetization potential (API + referral
-+ commission) and corroboration across platforms.
++ commission) and technical density (framework artifacts).
 """
+
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from .db import DB
 
@@ -23,8 +25,11 @@ CATEGORIES = {
 }
 
 
-def categorize(name: str, description: str) -> str:
-    """Return the best-matching category, or 'other'."""
+def categorize(name: str, description: str, current_cat: str = "") -> str:
+    """Return the best-matching category. Prefers current_cat if it exists."""
+    if current_cat and current_cat != "other":
+        return current_cat
+
     text = f"{name} {description}".lower()
     best, best_hits = "other", 0
     for cat, kws in CATEGORIES.items():
@@ -39,33 +44,49 @@ def _commission_pct(commission: str) -> int:
     return int(m.group(1)) if m else 0
 
 
-def score_service(row: dict) -> int:
-    """Compute a monetization-potential score from a service row (pure).
+def score_service(row: dict[str, Any]) -> int:
+    """Compute an elite monetization-potential score.
 
-    Favors *niche* finds: monetizable (API/referral) services that are still
-    under the radar get a bonus, while the popularity (upvotes) bonus is capped
-    so a viral generic tool can't outrank a niche monetizable one.
+    Includes Technical Density: high score for services using robust stacks
+    (Vercel AI, LangChain) vs generic low-effort wrappers.
     """
     s = 0
-    monetizable = bool(row.get("has_api") or row.get("has_referral"))
+
+    # 1. Monetization Baseline (Max 55)
     if row.get("has_api"):
         s += 30
     if row.get("has_referral"):
         s += 25
-    if _commission_pct(row.get("referral_commission", "")) > 20:
+
+    # 2. Commission Bonus (Max 20)
+    comm = _commission_pct(row.get("referral_commission", ""))
+    if comm > 30:
         s += 20
-    platforms = [p for p in (row.get("platforms") or "").split(",") if p]
-    if len(platforms) >= 2:
-        s += 15
-    if "free" in (row.get("pricing_info", "") or "").lower() or \
-            "free" in (row.get("pricing_model", "") or "").lower():
+    elif comm > 15:
         s += 10
+
+    # 3. Technical Density (Max 30) - NEW
+    stacks = set(filter(None, (row.get("tech_stack") or "").split(",")))
+    if stacks:
+        # High-value stacks indicate complex infra
+        high_value = {"vercel-ai", "langchain", "openai-compatible", "dify"}
+        s += min(20, len(stacks) * 5)
+        if stacks & high_value:
+            s += 10
+
+    # 4. Market Corroboration & Niche Signal (Max 25)
+    platforms = [p for p in (row.get("platforms") or "").split(",") if p]
     upvotes = int(row.get("upvotes", 0) or 0)
-    # popularity bonus, capped so it can't dominate niche signals
-    s += min(15, 5 * (upvotes // 100))
-    # niche bonus: monetizable, single-platform, still under the radar
-    if monetizable and len(platforms) <= 1 and upvotes < 100:
-        s += 15
+
+    if len(platforms) >= 3:
+        s += 15  # multi-platform validation
+    elif len(platforms) == 1 and upvotes < 50:
+        s += 10  # alpha-niche discovery bonus
+
+    # 5. Pricing transparency (Max 10)
+    if row.get("pricing_info") == "found":
+        s += 10
+
     return s
 
 
@@ -75,7 +96,9 @@ def rescore_all(db: DB) -> int:
     for row in db.all_services():
         d = dict(row)
         score = score_service(d)
-        cat = categorize(d.get("name", "") or "", d.get("description", "") or "")
+        cat = categorize(
+            d.get("name", "") or "", d.get("description", "") or "", d.get("category", "")
+        )
         db.update_service(row["id"], score=score, category=cat)
         db.add_tag(row["id"], cat)
         n += 1
@@ -85,8 +108,11 @@ def rescore_all(db: DB) -> int:
 if __name__ == "__main__":
     db = DB()
     updated = rescore_all(db)
-    print(f"Rescored {updated} services. Top 20:")
+    print(f"Rescored {updated} services. Top 20 Elite:")
     for r in db.top(20):
-        print(f"  [{r['score']:>3}] {r['category']:<11} {r['domain']:<28} "
-              f"api={r['has_api']} ref={r['has_referral']}")
+        stacks = r.get("tech_stack") or "-"
+        print(
+            f"  [{r['score']:>3}] {r['category']:<11} {r['domain']:<28} "
+            f"api={r['has_api']} ref={r['has_referral']} tech={stacks}"
+        )
     db.close()

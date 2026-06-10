@@ -1,4 +1,5 @@
 """Tests for foss_sources collector (pure functions, no network)."""
+
 from ai_finder.collectors.foss_sources import (
     algolia_hit_to_candidate,
     extract_links,
@@ -27,14 +28,13 @@ def test_extract_ai_external_links():
 def test_extract_skips_noninternal_noise_and_nonai():
     cands = extract_links(HTML, SRC)
     domains = {c.domain for c in cands}
-    assert "recipes.example" not in domains   # not AI
-    assert "lobste.rs" not in domains          # internal
-    assert "github.com" not in domains         # global noise
+    assert "recipes.example" not in domains  # not AI
+    assert "lobste.rs" not in domains  # internal
+    assert "github.com" not in domains  # global noise
 
 
 def test_algolia_hit_kept():
-    hit = {"url": "https://geekai.co", "title": "Show HN: GeekAI LLM API",
-           "points": 88}
+    hit = {"url": "https://geekai.co", "title": "Show HN: GeekAI LLM API", "points": 88}
     c = algolia_hit_to_candidate(hit)
     assert c is not None
     assert c.domain == "geekai.co"
@@ -42,8 +42,9 @@ def test_algolia_hit_kept():
 
 
 def test_algolia_hit_skips_non_ai_and_noise():
-    assert algolia_hit_to_candidate(
-        {"url": "https://x.com/a", "title": "AI tool", "points": 5}) is None
-    assert algolia_hit_to_candidate(
-        {"url": "https://shop.com", "title": "buy shoes"}) is None
+    assert (
+        algolia_hit_to_candidate({"url": "https://x.com/a", "title": "AI tool", "points": 5})
+        is None
+    )
+    assert algolia_hit_to_candidate({"url": "https://shop.com", "title": "buy shoes"}) is None
     assert algolia_hit_to_candidate({"title": "no url AI"}) is None

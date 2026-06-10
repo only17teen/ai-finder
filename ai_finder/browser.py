@@ -1,17 +1,21 @@
 """Shared Playwright helper: render a JS page to HTML."""
+
 from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
 
-UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
 
 
 @asynccontextmanager
 async def browser_page():
     """Yield a Playwright page with a realistic UA + basic stealth."""
     from playwright.async_api import async_playwright
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         ctx = await browser.new_context(
@@ -31,8 +35,7 @@ async def browser_page():
             await browser.close()
 
 
-async def render(url: str, wait: str = "domcontentloaded",
-                 timeout: int = 30000) -> str:
+async def render(url: str, wait: str = "domcontentloaded", timeout: int = 30000) -> str:
     """Return rendered HTML for a URL, or '' on failure."""
     try:
         async with browser_page() as page:
@@ -42,9 +45,9 @@ async def render(url: str, wait: str = "domcontentloaded",
         return ""
 
 
-async def render_many(urls: list[str], concurrency: int = 6,
-                      wait: str = "domcontentloaded",
-                      timeout: int = 30000) -> dict[str, str]:
+async def render_many(
+    urls: list[str], concurrency: int = 6, wait: str = "domcontentloaded", timeout: int = 30000
+) -> dict[str, str]:
     """Render many URLs reusing ONE browser. Returns {url: html} ('' on fail).
 
     Far faster than per-URL render(): single browser launch, N concurrent
@@ -53,6 +56,7 @@ async def render_many(urls: list[str], concurrency: int = 6,
     if not urls:
         return {}
     from playwright.async_api import async_playwright
+
     results: dict[str, str] = {u: "" for u in urls}
     sem = asyncio.Semaphore(concurrency)
     async with async_playwright() as p:
@@ -61,11 +65,11 @@ async def render_many(urls: list[str], concurrency: int = 6,
         async def _one(u: str):
             async with sem:
                 ctx = await browser.new_context(
-                    user_agent=UA, viewport={"width": 1366, "height": 768},
-                    locale="en-US")
+                    user_agent=UA, viewport={"width": 1366, "height": 768}, locale="en-US"
+                )
                 await ctx.add_init_script(
-                    "Object.defineProperty(navigator,'webdriver',"
-                    "{get:()=>undefined});")
+                    "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
+                )
                 page = await ctx.new_page()
                 try:
                     await page.goto(u, wait_until=wait, timeout=timeout)
@@ -96,8 +100,7 @@ async def _stealth_page(ctx, url: str, wait: str, timeout: int) -> str:
         await page.close()
 
 
-async def render_stealth(url: str, wait: str = "domcontentloaded",
-                         timeout: int = 35000) -> str:
+async def render_stealth(url: str, wait: str = "domcontentloaded", timeout: int = 35000) -> str:
     """Render a URL with Camoufox (anti-detect Firefox) to defeat Cloudflare
     and similar bot walls. Returns HTML, or '' on failure / if camoufox is
     unavailable. Heavier than render(); use only for protected sites."""
@@ -112,8 +115,9 @@ async def render_stealth(url: str, wait: str = "domcontentloaded",
         return ""
 
 
-async def render_stealth_many(urls: list[str], wait: str = "domcontentloaded",
-                              timeout: int = 35000) -> dict[str, str]:
+async def render_stealth_many(
+    urls: list[str], wait: str = "domcontentloaded", timeout: int = 35000
+) -> dict[str, str]:
     """Render many URLs reusing ONE Camoufox browser AND one context, so a
     Cloudflare clearance cookie solved on the first same-domain page is reused
     by the rest (sequential — parallel pages in camoufox are unstable)."""

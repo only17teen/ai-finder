@@ -4,6 +4,7 @@ Directories like theresanaiforthat.com / toolify.ai / futurepedia.io list
 thousands of AI tools. We render listing pages, extract outbound tool links,
 and keep those whose context hints at an API. Parsing is pure and tested.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -28,23 +29,34 @@ _DETAIL_HINTS = ("/ai/", "/tool/", "/tools/", "/product/")
 # Directory/infra domains that are never the discovered service itself.
 _SELF = {"theresanaiforthat.com", "toolify.ai", "futurepedia.io"}
 _NOISE = {
-    "google.com", "youtube.com", "twitter.com", "x.com", "facebook.com",
-    "linkedin.com", "instagram.com", "github.com", "discord.com",
-    "discord.gg", "apple.com", "play.google.com",
-    "getrewardful.com", "rewardful.com", "promotekit.com",
+    "google.com",
+    "youtube.com",
+    "twitter.com",
+    "x.com",
+    "facebook.com",
+    "linkedin.com",
+    "instagram.com",
+    "github.com",
+    "discord.com",
+    "discord.gg",
+    "apple.com",
+    "play.google.com",
+    "getrewardful.com",
+    "rewardful.com",
+    "promotekit.com",
 }
 
 
 def _skip(domain: str, src_domain: str) -> bool:
     if not domain or domain == src_domain:
         return True
-    return any(domain == d or domain.endswith("." + d)
-               for d in _SELF | _NOISE)
+    return any(domain == d or domain.endswith("." + d) for d in _SELF | _NOISE)
 
 
 def extract_detail_links(html: str, source_url: str) -> list[str]:
     """Pure: same-domain per-tool detail-page URLs found on a listing page."""
     from urllib.parse import urljoin
+
     src_domain = domain_of(source_url)
     soup = BeautifulSoup(html, "html.parser")
     seen: set[str] = set()
@@ -69,7 +81,7 @@ def extract_outbound(html: str, source_url: str) -> Candidate | None:
     """
     src_domain = domain_of(source_url)
     soup = BeautifulSoup(html, "html.parser")
-    title = (soup.title.get_text(strip=True) if soup.title else "")
+    title = soup.title.get_text(strip=True) if soup.title else ""
     prefer, fallback = None, None
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
@@ -85,8 +97,12 @@ def extract_outbound(html: str, source_url: str) -> Candidate | None:
     url = prefer or fallback
     if not url:
         return None
-    return Candidate(url=url, name=title[:80] or domain_of(url),
-                     description=title[:180], source_platform=PLATFORM)
+    return Candidate(
+        url=url,
+        name=title[:80] or domain_of(url),
+        description=title[:180],
+        source_platform=PLATFORM,
+    )
 
 
 def extract_candidates(html: str, source_url: str) -> list[Candidate]:
@@ -111,17 +127,20 @@ def extract_candidates(html: str, source_url: str) -> list[Candidate]:
         if not is_ai_related(ctx):
             continue
         seen.add(dom)
-        out.append(Candidate(
-            url=href,
-            name=anchor[:80] or dom,
-            description=("[api hint] " if mentions_api(ctx) else "") + parent[:180],
-            source_platform=PLATFORM,
-        ))
+        out.append(
+            Candidate(
+                url=href,
+                name=anchor[:80] or dom,
+                description=("[api hint] " if mentions_api(ctx) else "") + parent[:180],
+                source_platform=PLATFORM,
+            )
+        )
     return out
 
 
-async def fetch_candidates(sources: list[str] | None = None,
-                           max_details: int = 8) -> list[Candidate]:
+async def fetch_candidates(
+    sources: list[str] | None = None, max_details: int = 8
+) -> list[Candidate]:
     """Two-level crawl: listing -> detail pages -> outbound tool sites.
 
     Also keeps any direct outbound links found on the listing itself.
@@ -130,6 +149,7 @@ async def fetch_candidates(sources: list[str] | None = None,
     sources = sources or SOURCES
     from ..browser import render_stealth_many
     from ._base import dedup_by_domain
+
     out: list[Candidate] = []
     for url in sources:
         html = await render(url)
@@ -153,13 +173,16 @@ async def fetch_candidates(sources: list[str] | None = None,
 
 async def collect(db: DB, sources: list[str] | None = None) -> int:
     from . import store_candidates
+
     return store_candidates(db, PLATFORM, await fetch_candidates(sources))
 
 
 if __name__ == "__main__":
+
     async def _main():
         cands = await fetch_candidates()
         print(f"Found {len(cands)} AI-tool links across directories:")
         for c in cands[:20]:
             print(f"  {c.domain:<30} {c.name[:45]}")
+
     asyncio.run(_main())
