@@ -1,6 +1,7 @@
 """Shared Playwright helper: render a JS page to HTML."""
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -53,7 +54,7 @@ async def render_many(urls: list[str], concurrency: int = 6,
         return {}
     from playwright.async_api import async_playwright
     results: dict[str, str] = {u: "" for u in urls}
-    sem = __import__("asyncio").Semaphore(concurrency)
+    sem = asyncio.Semaphore(concurrency)
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
 
@@ -74,8 +75,7 @@ async def render_many(urls: list[str], concurrency: int = 6,
                 finally:
                     await ctx.close()
 
-        import asyncio as _a
-        await _a.gather(*[_one(u) for u in urls])
+        await asyncio.gather(*[_one(u) for u in urls])
         await browser.close()
     return results
 

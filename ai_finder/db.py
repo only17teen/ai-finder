@@ -94,6 +94,12 @@ class DB:
     def close(self):
         self.conn.close()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     @contextmanager
     def _tx(self):
         try:
@@ -194,21 +200,28 @@ class DB:
             "SELECT * FROM services WHERE id=?", (service_id,)
         ).fetchone()
 
-    def by_status(self, status: str) -> list[sqlite3.Row]:
-        return self.conn.execute(
-            "SELECT * FROM services WHERE status=?", (status,)
-        ).fetchall()
+    def by_status(self, status: str, limit: int | None = None) -> list[sqlite3.Row]:
+        query = "SELECT * FROM services WHERE status=?"
+        params = [status]
+        if limit:
+            query += " LIMIT ?"
+            params.append(limit)
+        return self.conn.execute(query, params).fetchall()
 
     def stale_unreachable(self, cooldown_seconds: float,
-                          now: float | None = None) -> list[sqlite3.Row]:
+                          now: float | None = None,
+                          limit: int | None = None) -> list[sqlite3.Row]:
         """Unreachable services last checked longer ago than the cooldown —
         candidates for a retry (transient failures shouldn't be permanent)."""
         import time as _t
         cutoff = (now if now is not None else _t.time()) - cooldown_seconds
-        return self.conn.execute(
-            "SELECT * FROM services WHERE status='unreachable' "
-            "AND (last_checked IS NULL OR last_checked < ?)", (cutoff,)
-        ).fetchall()
+        query = ("SELECT * FROM services WHERE status='unreachable' "
+                 "AND (last_checked IS NULL OR last_checked < ?)")
+        params = [cutoff]
+        if limit:
+            query += " LIMIT ?"
+            params.append(limit)
+        return self.conn.execute(query, params).fetchall()
 
     def top(self, limit: int = 20) -> list[sqlite3.Row]:
         return self.conn.execute(

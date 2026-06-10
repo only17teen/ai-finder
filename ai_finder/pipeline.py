@@ -41,15 +41,15 @@ SOURCE_NAMES = [
 
 def source_registry(db: DB, cfg: dict) -> dict:
     """Map source name -> zero-arg coroutine factory for enabled sources."""
-    lim = cfg["limits"]
-    tg = cfg["telegram"]
     return {
-        "hackernews": lambda: hackernews.collect(db, lim.get("hackernews", 100)),
+        "hackernews": lambda: hackernews.collect(
+            db, cfg.get("limits", {}).get("hackernews", 100)),
         "linux_forums": lambda: linux_forums.collect(db),
-        "apify": lambda: apify_sources.collect(db, cfg["apify"]["token"]),
+        "apify": lambda: apify_sources.collect(
+            db, cfg.get("apify", {}).get("token", "")),
         "ai_directories": lambda: ai_directories.collect(db),
         "github_trending": lambda: github_trending.collect(
-            db, lim.get("github_trending", 25)),
+            db, cfg.get("limits", {}).get("github_trending", 25)),
         "hidden_gems": lambda: hidden_gems.collect(db),
         "foss": lambda: foss_sources.collect(db),
         "forums": lambda: forums.collect(db),
@@ -60,15 +60,24 @@ def source_registry(db: DB, cfg: dict) -> dict:
         "mastodon": lambda: mastodon.collect(db),
         "linux_do": lambda: linux_do.collect(db),
         "telegram": lambda: telegram_channels.collect(
-            db, tg["api_id"], tg["api_hash"], tg["channels"]),
+            db, 
+            cfg.get("telegram", {}).get("api_id"), 
+            cfg.get("telegram", {}).get("api_hash"), 
+            cfg.get("telegram", {}).get("channels", [])
+        ),
     }
 
 
 async def collect(db: DB, cfg: dict, only: str | None) -> int:
     """Run enabled collectors concurrently. Logs per-source failures."""
-    src = cfg["sources"]
+    src = cfg.get("sources", {})
     registry = source_registry(db, cfg)
     names = [n for n in registry if src.get(n) and only in (None, n)]
+    
+    if not names:
+        log.warning("No enabled sources matched (only=%r). Check your config.toml.", only)
+        return 0
+        
     results = await asyncio.gather(
         *[registry[n]() for n in names], return_exceptions=True)
     total = 0
@@ -76,8 +85,8 @@ async def collect(db: DB, cfg: dict, only: str | None) -> int:
         if isinstance(res, Exception):
             log.error("collector %s failed: %s", name, res)
         else:
-            total += res
-            log.info("collector %s: %d new", name, res)
+            total += res or 0
+            log.info("collector %s: %d new", name, res or 0)
     return total
 
 
@@ -91,10 +100,22 @@ async def verify_pending(db: DB, concurrency: int = 6,
     Caps each run at `max_verify` sites (leftovers stay pending for next run) so
     a big collection batch can't make a single run take unbounded time.
     """
-    due = list(db.by_status("pending"))
+    seen_ids: set[int] = set()
+    due = []
+    
+    for r in db.by_status("pending"):
+        if r["id"] not in seen_ids:
+            seen_ids.add(r["id"])
+            due.append(r)
+            
     if retry_cooldown_h > 0:
-        due += db.stale_unreachable(retry_cooldown_h * 3600)
+        for r in db.stale_unreachable(retry_cooldown_h * 3600):
+            if r["id"] not in seen_ids:
+                seen_ids.add(r["id"])
+                due.append(r)
+                
     if not due:
         return 0
-    ids = [r["id"] for r in due][:max_verify]
+        
+    ids = [r["id"] for r in due[:max_verify]]
     return await verifier.verify_services_batch(db, ids, concurrency=concurrency)

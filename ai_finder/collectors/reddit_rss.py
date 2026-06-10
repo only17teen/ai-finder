@@ -20,10 +20,10 @@ PLATFORM = "reddit"
 
 SUBREDDITS = [
     "LocalLLaMA", "selfhosted", "StableDiffusion", "artificial",
-    "MachineLearning", "OpenAI", "ArtificialInteligence", "ollama",
+    "MachineLearning", "OpenAI", "ArtificialIntelligence", "ollama",
     "comfyui", "LLMDevs",
 ]
-RSS = "https://www.reddit.com/r/{sub}/new.rss?limit=40"
+RSS = "https://www.reddit.com/r/{sub}/new.rss?limit=100"
 
 _ASSET_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".pdf")
 _EXTRA_NOISE = {

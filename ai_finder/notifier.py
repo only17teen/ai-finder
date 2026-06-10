@@ -19,8 +19,10 @@ def format_service(row: dict) -> str:
     """Pure: HTML-formatted Telegram message for one service."""
     e = html.escape
     name = e(row.get("name") or row.get("domain", ""))
-    lines = [f"<b>🤖 {name}</b>  (score {row.get('score', 0)})",
-             f"🌐 {e(row.get('domain', ''))}"]
+    lines = [
+        f"🤖 <b>{name}</b> (score {row.get('score', 0)})",
+        f"🌐 {e(row.get('domain', ''))}",
+    ]
     if row.get("category"):
         lines.append(f"🏷 {e(row['category'])}")
     if row.get("description"):
@@ -29,8 +31,10 @@ def format_service(row: dict) -> str:
         lines.append(f"🔌 API: {e(row.get('api_docs_url') or 'yes')}")
     if row.get("has_referral"):
         comm = row.get("referral_commission") or ""
-        lines.append(f"💰 Referral{(' ' + comm) if comm else ''}: "
-                     f"{e(row.get('referral_url') or 'yes')}")
+        lines.append(
+            f"💰 Referral{(' ' + e(comm)) if comm else ''}: "
+            f"{e(row.get('referral_url') or 'yes')}"
+        )
     if row.get("pricing_model"):
         lines.append(f"💵 Pricing: {e(row['pricing_model'])}")
     return "\n".join(lines)

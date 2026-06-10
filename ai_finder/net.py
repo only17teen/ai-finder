@@ -9,6 +9,7 @@ import asyncio
 import logging
 import random
 import time
+from collections import OrderedDict
 
 import httpx
 
@@ -17,9 +18,16 @@ from .db import NOISE_DOMAINS, domain_of, is_noise_domain  # noqa: F401
 log = logging.getLogger("ai_finder")
 
 USER_AGENTS = [
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Firefox/124.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:124.0) Gecko/20100101 Firefox/124.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:123.0) Gecko/20100101 Firefox/123.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
 ]
 
 RETRY_STATUS = {429, 500, 502, 503, 504}
@@ -34,19 +42,32 @@ def backoff_delay(attempt: int, base: float = 0.5, cap: float = 30.0) -> float:
     return random.uniform(0, min(cap, base * (2 ** attempt)))
 
 
+class _BoundedDict(OrderedDict):
+    def __init__(self, maxsize=4096):
+        super().__init__()
+        self._maxsize = maxsize
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        if len(self) > self._maxsize:
+            self.popitem(last=False)  # evict oldest
+
+
 class RateLimiter:
     """Enforce a minimum delay between requests to the same host."""
 
     def __init__(self, per_domain_delay: float = 1.0):
         self.delay = per_domain_delay
-        self._last: dict[str, float] = {}
-        self._locks: dict[str, asyncio.Lock] = {}
+        self._last = _BoundedDict()
+        self._locks = _BoundedDict()
 
     async def wait(self, url: str) -> None:
         if self.delay <= 0:
             return
         dom = domain_of(url)
-        lock = self._locks.setdefault(dom, asyncio.Lock())
+        if dom not in self._locks:
+            self._locks[dom] = asyncio.Lock()
+        lock = self._locks[dom]
         async with lock:
             now = time.monotonic()
             elapsed = now - self._last.get(dom, 0.0)
@@ -103,10 +124,14 @@ async def fetch_all(urls, per_domain_delay: float = 1.0,
     to `urls` (None where the fetch failed). Shared by HTTP collectors."""
     headers = {"User-Agent": user_agent or random_ua()}
     limiter = RateLimiter(per_domain_delay=per_domain_delay)
+    sem = asyncio.Semaphore(50)
+
+    async def _bounded(client, u):
+        async with sem:
+            return await fetch(client, u, limiter=limiter, max_retries=max_retries)
+
     async with httpx.AsyncClient(follow_redirects=True, headers=headers) as client:
-        return await asyncio.gather(
-            *[fetch(client, u, limiter=limiter, max_retries=max_retries)
-              for u in urls])
+        return await asyncio.gather(*[_bounded(client, u) for u in urls])
 
 
 def setup_logging(verbose: bool = False, logfile: str = "ai_finder.log") -> None:

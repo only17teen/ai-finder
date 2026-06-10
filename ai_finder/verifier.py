@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -103,7 +103,9 @@ def _match(links, page_text, paths, texts, strong_texts=None):
     appearing in a news article.
     """
     for url, anchor, href in links:
-        if any(p in href for p in paths) or any(t == anchor or t in anchor for t in texts):
+        path = urlparse(url).path.lower().rstrip("/")
+        if any(path == p or path.startswith(p + "/") for p in paths) or \
+           any(t == anchor or t in anchor for t in texts):
             return url
     strong = strong_texts if strong_texts is not None else texts
     return "__text__" if any(t in page_text for t in strong) else ""
@@ -181,23 +183,23 @@ def merge_findings(base: dict, probed: dict) -> dict:
     out = dict(base)
     if not out.get("has_api") and probed.get("has_api"):
         out["has_api"] = True
-        out["api_docs_url"] = probed.get("api_docs_url") or probed["__url__"]
+        out["api_docs_url"] = probed.get("api_docs_url") or probed.get("__url__", "")
     if not out.get("has_referral") and probed.get("has_referral"):
         out["has_referral"] = True
-        out["referral_url"] = probed.get("referral_url") or probed["__url__"]
+        out["referral_url"] = probed.get("referral_url") or probed.get("__url__", "")
         if not out.get("referral_commission"):
             out["referral_commission"] = probed.get("referral_commission", "")
     if not out.get("affiliate_platform") and probed.get("affiliate_platform"):
         out["affiliate_platform"] = probed["affiliate_platform"]
     if not out.get("pricing_info") and probed.get("pricing_info"):
         out["pricing_info"] = "found"
-        out["pricing_model"] = probed.get("pricing_model") or probed["__url__"]
+        out["pricing_model"] = probed.get("pricing_model") or probed.get("__url__", "")
     return out
 
 
 async def _probe_missing(base_url: str, findings: dict) -> dict:
     """Probe known paths for capabilities the homepage didn't reveal."""
-    from urllib.parse import urljoin
+    from urllib.parse import urljoin, urlparse
 
     import httpx
     needed = [cap for cap, key in (("api", "has_api"), ("referral", "has_referral"),
@@ -220,7 +222,7 @@ async def _probe_missing(base_url: str, findings: dict) -> dict:
                 target = urljoin(base_url, path)
                 try:
                     r = await client.get(target, timeout=8)
-                except Exception:
+                except (httpx.HTTPError, httpx.TimeoutException, OSError):
                     fails += 1
                     continue
                 fails = 0
@@ -294,9 +296,9 @@ async def verify_services_batch(db: DB, service_ids: list[int],
         url = urls[r["id"]]
         html = html_by_url.get(url, "")
         findings = analyze_html(html, url) if html else {}
-        # Probe known paths (/api, /affiliate, /fenxiao, /pricing) when the
-        # homepage revealed neither API nor referral — same as single verify().
-        if findings and not (findings.get("has_api") and findings.get("has_referral")):
+        # Probe known paths (/api, /affiliate, /fenxiao, /pricing) when any
+        # capability is missing — _probe_missing decides what's actually needed.
+        if findings:
             findings = await _probe_missing(url, findings)
         db.update_service(r["id"], **_persist_fields(r, findings))
     return len(rows)

@@ -49,11 +49,17 @@ async def cmd_run(db: DB, cfg: dict, only: str | None) -> None:
     )
     print(f"Verified:  {checked} sites")
     scorer.rescore_all(db)
-    tg = cfg["telegram"]
-    sent = await notifier.notify_new(
-        db, tg["bot_token"], tg["chat_id"], cfg["notify"]["threshold"])
-    if sent:
-        print(f"Notified:  {sent} services")
+    
+    tg = cfg.get("telegram", {})
+    token, chat = tg.get("bot_token"), tg.get("chat_id")
+    threshold = cfg.get("notify", {}).get("threshold", 50)
+    if token and chat:
+        sent = await notifier.notify_new(db, token, chat, threshold)
+        if sent:
+            print(f"Notified:  {sent} services")
+    else:
+        log.debug("Telegram not configured, skipping notifications")
+        
     print("Stats:", db.stats())
 
 
@@ -91,22 +97,22 @@ def cmd_export(db: DB, out: str, min_score: int = 0,
     requirement; `--min-score` filters by score; `--format` picks the writer.
     """
     def keep(r) -> bool:
-        if r["score"] < min_score:
+        if (r["score"] or 0) < min_score:
             return False
         if require_referral:
             return bool(r["has_api"] and r["has_referral"])
         return bool(r["has_api"])
 
     rows = [r for r in db.all_services() if keep(r)]
-    rows.sort(key=lambda r: r["score"], reverse=True)
+    rows.sort(key=lambda r: r["score"] or 0, reverse=True)
     if fmt == "json":
-        with open(out, "w") as f:
+        with open(out, "w", encoding="utf-8") as f:
             json.dump(_rows_to_dicts(rows), f, ensure_ascii=False, indent=2)
     elif fmt == "md":
-        with open(out, "w") as f:
+        with open(out, "w", encoding="utf-8") as f:
             f.write(_to_markdown(rows))
     else:  # csv
-        with open(out, "w", newline="") as f:
+        with open(out, "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=EXPORT_COLS, extrasaction="ignore")
             w.writeheader()
             for r in rows:
@@ -227,10 +233,13 @@ def cmd_history(db: DB, domain: str) -> None:
 
 
 async def cmd_digest(db: DB, cfg: dict, limit: int) -> None:
-    tg = cfg["telegram"]
-    ok = await notifier.send_digest(db, tg["bot_token"], tg["chat_id"], limit)
-    print("Digest sent." if ok else
-          "Digest not sent (no Telegram token/chat or no services).")
+    tg = cfg.get("telegram", {})
+    token, chat = tg.get("bot_token"), tg.get("chat_id")
+    if token and chat:
+        ok = await notifier.send_digest(db, token, chat, limit)
+        print("Digest sent." if ok else "Digest not sent (no services).")
+    else:
+        print("Digest not sent (Telegram not configured).")
 
 
 async def cmd_recheck(db: DB, max_age_days: float, only_verified: bool) -> None:
@@ -312,15 +321,11 @@ def main(argv: list[str] | None = None) -> int:
     p_report.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
 
-    if args.verbose:
-        from .net import setup_logging
-        setup_logging(verbose=True)
-    else:
-        from .net import setup_logging
-        setup_logging(verbose=False)
+    from .net import setup_logging
+    setup_logging(verbose=args.verbose)
 
-    cfg = _config.load(args.config)
     try:
+        cfg = _config.load(args.config)
         if args.cmd == "verify":
             asyncio.run(cmd_verify(args.url))
             return 0

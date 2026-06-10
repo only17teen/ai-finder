@@ -1,6 +1,7 @@
 """Config loading from config.toml with env-var fallback for secrets."""
 from __future__ import annotations
 
+import copy
 import os
 import tomllib
 from pathlib import Path
@@ -61,17 +62,23 @@ def load_dotenv(path: str | Path = ".env") -> int:
 def load(path: str | Path = DEFAULT_PATH) -> dict:
     """Load config.toml merged over defaults; .env + env vars override secrets."""
     load_dotenv()  # populate os.environ from .env first (if present)
-    cfg = dict(DEFAULTS)
     p = Path(path)
+    cfg = copy.deepcopy(DEFAULTS)
     if p.exists():
         with open(p, "rb") as f:
-            cfg = _merge(DEFAULTS, tomllib.load(f))
+            cfg = _merge(cfg, tomllib.load(f))
     # env overrides for secrets (don't hardcode tokens)
     cfg["apify"]["token"] = os.getenv("APIFY_TOKEN", cfg["apify"]["token"])
     tg = cfg["telegram"]
     tg["bot_token"] = os.getenv("TELEGRAM_BOT_TOKEN", tg["bot_token"])
     tg["chat_id"] = os.getenv("TELEGRAM_CHAT_ID", tg["chat_id"])
     tg["api_hash"] = os.getenv("TELEGRAM_API_HASH", tg["api_hash"])
-    if os.getenv("TELEGRAM_API_ID"):
-        tg["api_id"] = int(os.getenv("TELEGRAM_API_ID"))
+    
+    api_id = os.getenv("TELEGRAM_API_ID")
+    if api_id:
+        try:
+            tg["api_id"] = int(api_id)
+        except ValueError:
+            pass
+            
     return cfg

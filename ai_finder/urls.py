@@ -5,6 +5,8 @@ verifier can depend on domain logic without pulling in SQLite.
 """
 from __future__ import annotations
 
+from functools import lru_cache
+
 import tldextract
 
 # Subdomain labels that denote the same service (collapsed for dedup).
@@ -18,6 +20,7 @@ _COMMON_SUBDOMAINS = {
 _TLD = tldextract.TLDExtract(suffix_list_urls=())
 
 
+@lru_cache(maxsize=4096)
 def domain_of(url: str) -> str:
     """Normalize a URL to its registrable host using the Public Suffix List,
     with common service subdomains stripped (www/app/docs/api/...).
@@ -30,7 +33,7 @@ def domain_of(url: str) -> str:
     if "://" not in url:
         url = "http://" + url
     ext = _TLD(url)
-    registrable = ext.top_domain_under_public_suffix  # e.g. foo.com.cn
+    registrable = ext.registered_domain  # canonical: e.g. foo.com.cn
     if not registrable:
         # no recognizable public suffix — fall back to the raw host
         from urllib.parse import urlparse
@@ -72,10 +75,15 @@ NEWS_DOMAINS = {
     "sh.itjust.works", "feddit.org", "feddit.it", "lemm.ee", "catbox.moe",
 }
 
+_ALL_NOISE: frozenset[str] = frozenset(NOISE_DOMAINS | NEWS_DOMAINS)
+
 
 def is_noise_domain(domain: str) -> bool:
     """True for generic/infra/news hosts that aren't a discoverable service."""
     if not domain:
+        return True
+    # IPv6 addresses (e.g. 2001:db8::1)
+    if ":" in domain:
         return True
     # Non-public hosts: localhost, IPs, systemd targets, no-dot/TLD-less names.
     if domain in ("localhost",) or domain.startswith("127.") or \
@@ -83,4 +91,4 @@ def is_noise_domain(domain: str) -> bool:
             domain.endswith((".local", ".target", ".service", ".lan")):
         return True
     return any(domain == n or domain.endswith("." + n)
-               for n in NOISE_DOMAINS | NEWS_DOMAINS)
+               for n in _ALL_NOISE)
