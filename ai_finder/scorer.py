@@ -47,8 +47,18 @@ def _commission_pct(commission: str) -> int:
 def score_service(row: dict[str, Any]) -> int:
     """Compute an elite monetization-potential score.
 
-    Includes Technical Density: high score for services using robust stacks
-    (Vercel AI, LangChain) vs generic low-effort wrappers.
+    Composition (capped at 115):
+        Monetization Baseline:     55 max (api 30 + referral 25)
+        Commission Bonus:          20 max (>=30%: 20, >15%: 10)
+        Technical Density:         30 max (stacks: 5/each cap 20, +10 high-value)
+        Market Corroboration:      30 max (multi-platform 15, niche 15)
+        Popularity:                15 max (upvotes/100 * 5, capped at 15)
+        Pricing transparency:      10 max
+
+    Niche and multi-platform bonuses are mutually exclusive on the same axis
+    (a service with 1 platform and low upvotes gets the niche bonus; with 2+,
+    it gets the multi-platform bonus instead). Niche requires monetization so
+    a low-value, non-monetizable service does not jump the ranking.
     """
     s = 0
 
@@ -57,33 +67,37 @@ def score_service(row: dict[str, Any]) -> int:
         s += 30
     if row.get("has_referral"):
         s += 25
+    monetizable = bool(row.get("has_api")) or bool(row.get("has_referral"))
 
     # 2. Commission Bonus (Max 20)
     comm = _commission_pct(row.get("referral_commission", ""))
-    if comm > 30:
+    if comm >= 30:
         s += 20
     elif comm > 15:
         s += 10
 
-    # 3. Technical Density (Max 30) - NEW
+    # 3. Technical Density (Max 30)
     stacks = set(filter(None, (row.get("tech_stack") or "").split(",")))
     if stacks:
-        # High-value stacks indicate complex infra
         high_value = {"vercel-ai", "langchain", "openai-compatible", "dify"}
         s += min(20, len(stacks) * 5)
         if stacks & high_value:
             s += 10
 
-    # 4. Market Corroboration & Niche Signal (Max 25)
+    # 4. Market Corroboration & Niche Signal (Max 30)
     platforms = [p for p in (row.get("platforms") or "").split(",") if p]
     upvotes = int(row.get("upvotes", 0) or 0)
 
-    if len(platforms) >= 3:
+    if len(platforms) >= 2:
         s += 15  # multi-platform validation
-    elif len(platforms) == 1 and upvotes < 50:
-        s += 10  # alpha-niche discovery bonus
+    elif len(platforms) == 1 and upvotes < 50 and monetizable:
+        s += 15  # alpha-niche discovery bonus (requires monetization)
 
-    # 5. Pricing transparency (Max 10)
+    # 5. Popularity (Max 15) - soft signal
+    if upvotes > 0:
+        s += min(15, (upvotes // 100) * 5)
+
+    # 6. Pricing transparency (Max 10)
     if row.get("pricing_info") == "found":
         s += 10
 

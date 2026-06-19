@@ -62,7 +62,7 @@ REFERRAL_TEXT = (
     "partner program",
 )
 
-PRICING_PATHS = ("/pricing", "/plans", "/price", "/billing", "/jiage")
+PRICING_PATHS = ("/pricing", "/plans", "/price", "/billing", "/jiage", "/huiyuan", "/huiyuandingjia")
 PRICING_TEXT = (
     "pricing",
     "free tier",
@@ -82,12 +82,15 @@ REFERRAL_STRONG = (
     "earn commission",
     "invite friends",
 )
-PRICING_STRONG = ("free tier", "pay as you go", "per month", "free trial")
+PRICING_STRONG = ("free tier", "pay as you go", "per month", "free trial", "会员定价", "价格", "定价", "套餐", "vip")
 
 _COMMISSION_RE = re.compile(
     r"(\d{1,3})\s*%\s*(?:recurring\s*)?(?:commission|cut|payout|revenue|rev[\s-]?share)"
     r"|earn\s+(?:up\s+to\s+)?(\d{1,3})\s*%"
-    r"|(\d{1,3})\s*%\s*(?:返佣|佣金|分成|提成|返现)",
+    # Chinese: number% then chinese word (40%分成) — allow zero or more spaces
+    r"|(\d{1,3})\s*%\s*(?:返佣|佣金|分成|提成|返现)"
+    # Chinese: chinese word then number% (返佣30%, 返佣 30%, 佣金高达 50%, 佣金高达50%)
+    r"|(?:返佣|佣金|分成|提成|返现)(?:\s*(?:高达|最高|最多))?\s*(\d{1,3})\s*%",
     re.I,
 )
 
@@ -220,6 +223,12 @@ def _match(links, page_text, paths, texts, strong_texts=None):
 
 
 def extract_commission(text: str) -> str:
+    """Extract a commission percentage from promotional text.
+
+    Handles English patterns ("50% commission", "earn 25%") and Chinese
+    patterns both directions: "40%分成" and "返佣30%" / "佣金高达 50%".
+    Returns the first match as "N%", or "" if nothing matches.
+    """
     m = _COMMISSION_RE.search(text or "")
     if not m:
         return ""

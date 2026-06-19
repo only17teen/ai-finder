@@ -141,10 +141,6 @@ class DB:
         if not c.domain:
             raise ValueError(f"candidate has no domain: {c.url}")
 
-        # Fast session-level short-circuit
-        if self.check_seen(c.domain) and c.upvotes < 50:
-            return -1, False
-
         if is_noise_domain(c.domain):
             return -1, False  # skip generic/infra hosts
         now = time.time()
@@ -152,35 +148,41 @@ class DB:
             "SELECT id, platforms, upvotes FROM services WHERE domain=?",
             (c.domain,),
         ).fetchone()
-        if row is None:
-            cur = conn.execute(
-                """INSERT INTO services
-                (domain,name,description,source_url,source_platform,
-                 upvotes,platforms,discovered_at,status)
-                VALUES (?,?,?,?,?,?,?,?,'pending')""",
-                (
-                    c.domain,
-                    c.name,
-                    c.description,
-                    c.url,
-                    c.source_platform,
-                    c.upvotes,
-                    c.source_platform,
-                    now,
-                ),
+        if row is not None:
+            # merge: track platforms, keep max upvotes, fill missing fields
+            platforms = set(filter(None, (row["platforms"] or "").split(",")))
+            platforms.add(c.source_platform)
+            conn.execute(
+                """UPDATE services SET platforms=?, upvotes=MAX(upvotes,?),
+                   name=COALESCE(NULLIF(name,''),?),
+                   description=COALESCE(NULLIF(description,''),?)
+                   WHERE id=?""",
+                (",".join(sorted(platforms)), c.upvotes, c.name, c.description, row["id"]),
             )
-            return cur.lastrowid, True
-        # merge: track platforms, keep max upvotes, fill missing fields
-        platforms = set(filter(None, (row["platforms"] or "").split(",")))
-        platforms.add(c.source_platform)
-        conn.execute(
-            """UPDATE services SET platforms=?, upvotes=MAX(upvotes,?),
-               name=COALESCE(NULLIF(name,''),?),
-               description=COALESCE(NULLIF(description,''),?)
-               WHERE id=?""",
-            (",".join(sorted(platforms)), c.upvotes, c.name, c.description, row["id"]),
+            return row["id"], False
+        # Fast session-level short-circuit: skip a low-value re-occurrence of a
+        # domain that is not yet in the DB. This is the only case where the
+        # short-circuit is safe — once a row exists, the merge path above must
+        # run so platforms/upvotes are accumulated correctly.
+        if self.check_seen(c.domain) and c.upvotes < 50:
+            return -1, False
+        cur = conn.execute(
+            """INSERT INTO services
+            (domain,name,description,source_url,source_platform,
+             upvotes,platforms,discovered_at,status)
+            VALUES (?,?,?,?,?,?,?,?,'pending')""",
+            (
+                c.domain,
+                c.name,
+                c.description,
+                c.url,
+                c.source_platform,
+                c.upvotes,
+                c.source_platform,
+                now,
+            ),
         )
-        return row["id"], False
+        return cur.lastrowid, True
 
     def upsert_candidate(self, c: Candidate) -> tuple[int, bool]:
         """Insert candidate or merge into existing (dedup by domain).
